@@ -1,0 +1,37 @@
+from pydantic import Field, SecretStr
+from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import URL
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    postgres_user: str = Field(default="querylens", min_length=1)
+    postgres_password: SecretStr = Field(min_length=1)
+    postgres_db: str = Field(default="querylens", min_length=1)
+    postgres_host: str = Field(default="127.0.0.1", min_length=1)
+    postgres_port: int = Field(default=5433, ge=1, le=65535)
+    db_connect_timeout_seconds: int = Field(default=3, ge=1, le=30)
+    db_statement_timeout_ms: int = Field(default=5000, ge=1, le=60000)
+
+    @property
+    def database_url(self) -> URL:
+        # URL.create handles reserved characters in passwords without string interpolation.
+        return URL.create(
+            drivername="postgresql+psycopg2",
+            username=self.postgres_user,
+            password=self.postgres_password.get_secret_value(),
+            host=self.postgres_host,
+            port=self.postgres_port,
+            database=self.postgres_db,
+        )
+
+    @property
+    def database_connect_args(self) -> dict[str, str | int]:
+        return {
+            "connect_timeout": self.db_connect_timeout_seconds,
+            "options": (
+                f"-c statement_timeout={self.db_statement_timeout_ms} "
+                "-c lock_timeout=1000 -c timezone=UTC"
+            ),
+        }

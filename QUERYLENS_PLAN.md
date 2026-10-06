@@ -1,7 +1,7 @@
 # QueryLens — мета, архітектура та план розробки
 
 Дата створення: 2026-10-04  
-Статус: проєкт заплановано; реалізація ще не починалася.  
+Статус: етап 0 завершено й перевірено локально; наступний — schema, roles, seed та knowledge docs.
 Призначення документа: основний контекст для спільної розробки через Codex CLI.
 
 ## 1. Для чого ми робимо цей проєкт
@@ -601,7 +601,7 @@ Dockerfile, Docker Compose з PostgreSQL/pgvector, .env.example і README.
 
 ### Checklist
 
-- [ ] Етап 0: skeleton, Docker, FastAPI, settings.
+- [x] Етап 0: skeleton, Docker, FastAPI, settings.
 - [ ] Етап 1: schema, roles, seed, knowledge docs.
 - [ ] Етап 2: SQL validation і database tools.
 - [ ] Етап 3: embeddings, ingestion, retrieval.
@@ -614,12 +614,12 @@ Dockerfile, Docker Compose з PostgreSQL/pgvector, .env.example і README.
 
 ### Handoff — оновлювати після кожної сесії
 
-- **Останній завершений етап:** немає; 2026-10-06 виконано підготовку `/init` — створено `AGENTS.md` із правилами роботи за цим планом.
-- **Поточний стан:** є план і правила для Codex; поточна папка є Git-репозиторієм із гілкою `main` та `origin` → `https://github.com/itsvigun/querylens.git`. Комітів ще немає, обидва файли untracked; реалізація ще не починалася.
-- **Що перевірено:** прочитано весь план, звірено `AGENTS.md` із його вимогами; після виконання користувачем команд перевірено `git status`, `git remote -v` та корінь репозиторію. У `AGENTS.md` додано правило англомовних повідомлень комітів. Спроба додати файли до індексу для першого коміту заблокована: `.git/index.lock`: Operation not permitted. Коду й команд запуску ще немає, API та deployment не перевірялися.
-- **Наступна дія:** етап 0 — створити skeleton і локальний Docker environment.
-- **Відкриті рішення:** package manager, точні versions/models, hosting і бюджет.
-- **Блокери:** підключення репозиторію виконано користувачем і підтверджено локально. Запис агента в `.git` заблокований (`git add`: неможливо створити `.git/index.lock`), тому перший коміт ще не створено; повідомлення підготовлено: `docs: add project plan and agent instructions`. Мережевий доступ агента до GitHub раніше завершився помилкою DNS. Для першої live LLM/embedding інтеграції потрібен server-side API key; для skeleton він не потрібен.
+- **Останній завершений етап:** етап 0 — 2026-10-06, skeleton і локальне середовище.
+- **Поточний стан:** є uv project і lockfile, settings, FastAPI `/health/live` та `/health/ready`, Alembic із міграцією pgvector, Dockerfile з non-root користувачем, Compose з окремим migration job, README та тести. Локальні `querylens-api-1` і `querylens-db-1` працюють: API `http://127.0.0.1:8000`, БД `127.0.0.1:5433`. Створено ignored `.env` із випадковим локальним паролем; `.env` не включено до Docker-образу. Етап 0 зафіксовано локальним комітом `feat: add FastAPI and PostgreSQL development environment`; push до GitHub ще не виконано.
+- **Що перевірено:** мережа та Docker daemon доступні після зміни дозволів; `uv lock --check`, `uv sync --locked`, Ruff lint/format, 13 offline тестів і 1 PostgreSQL integration test (разом 14 passed). Docker build та README quickstart перевірено в окремій свіжій копії файлів із новим volume. До міграції readiness — 503, після — 200. Реальна vector distance дорівнює 0 для однакових векторів, sessions використовують UTC. При зупиненій БД liveness — 200, readiness — 503; після відновлення БД readiness — 200. Після `compose down` і повторного створення контейнерів без міграцій revision і pgvector збережені. Тимчасові verification containers/volume видалено; основне локальне середовище залишено запущеним. Git і Docker ignore-файли виключають `.env` та локальне середовище.
+- **Наступна дія:** етап 1 — analytics tables, окремі roles/grants, відтворюваний seed із demo reference date, knowledge docs і контрольні метрики. Повідомлення комітів — англійською.
+- **Відкриті рішення:** обрано uv, Python 3.12, SQLAlchemy 2.0 і psycopg2; синхронні DB health checks виконуються в пулі потоків FastAPI. Python 3.12 залишено як просту базову версію після розблокування доступу; актуальні сумісні patch versions зафіксовано в `uv.lock` (FastAPI 0.136.3, SQLAlchemy 2.0.54, Alembic 1.20.0, psycopg2-binary 2.9.13). Dev TestClient використовує HTTPX2 за актуальною документацією Starlette, щоб уникнути deprecation старого HTTPX. Docker: PostgreSQL 17 / pgvector 0.8.6. LLM models, embedding dimensions, demo reference date, hosting і бюджет ще не обрано. Knowledge-index readiness буде додано на етапі ingestion.
+- **Блокери:** для етапу 1 немає. Для першої live LLM/embedding інтеграції потрібен server-side API key; поточний етап його не потребував. SQL tool і окрема read-only роль ще не реалізовані — це наступні етапи; локальна owner роль використовується лише для міграцій та health checks.
 
 ## 18. Перший цільовий результат
 
