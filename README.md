@@ -10,7 +10,7 @@ No LLM API key is required for this stage.
 
 ## Stack
 
-- Python 3.12 and uv with dependencies pinned in `uv.lock`.
+- Python 3.14.8 and uv with dependencies pinned in `uv.lock`.
 - FastAPI and Uvicorn.
 - SQLAlchemy 2.0 and psycopg2 for PostgreSQL connections.
 - Alembic for explicit database migrations.
@@ -74,9 +74,9 @@ already initialized database; update the database role password too if needed.
 
 ## Local Python development
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/). uv selects
-Python 3.12 using `.python-version` and downloads it when necessary. Follow the
-environment setup above, then run:
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/) 0.12.23 or later.
+uv selects Python 3.14.8 using `.python-version` and downloads it when necessary.
+Follow the environment setup above, then run:
 
 ```bash
 uv sync --locked
@@ -159,6 +159,11 @@ Stage 0 was verified on 2026-10-06: 13 offline tests and one PostgreSQL integrat
 test passed, along with Ruff lint and formatting checks. The Docker quickstart
 passed from a fresh source copy with a new volume. Database outage/recovery and
 persistence after recreating containers were also verified.
+
+The Python 3.14.8 upgrade was verified on the same date: all 14 tests and Ruff
+checks passed, the lockfile was checked, and the Docker API and migration job ran
+successfully on 3.14.8. Both health endpoints returned HTTP 200. Dependency
+versions remained unchanged.
 
 ## Scope and next steps
 
