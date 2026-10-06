@@ -83,7 +83,7 @@ the implementation and checks establish what actually works.
 
 ## Verification and commands
 
-The stage 0 skeleton uses uv, Python 3.12, and a development dependency group for
+The stage 0 skeleton uses uv, Python 3.14.8, and a development dependency group for
 pytest, HTTPX2, and Ruff. See the plan's handoff for checks actually completed.
 Establish and document exact setup, run, migration, lint, test, and evaluation
 commands in `README.md` as the relevant stages are implemented. Do not present

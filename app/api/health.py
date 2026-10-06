@@ -19,7 +19,7 @@ def live() -> dict[str, str]:
 def ready(request: Request) -> JSONResponse:
     try:
         checks = database_checks(request.app.state.engine, request.app.state.migration_heads)
-    except (SQLAlchemyError, OSError):
+    except SQLAlchemyError, OSError:
         # Do not log exception text or return connection details to the caller.
         logger.warning("Database readiness check failed")
         checks = {"database": False, "migrations": False, "pgvector": False}
