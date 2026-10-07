@@ -17,6 +17,7 @@ RUN groupadd --gid 10001 querylens \
 
 COPY --chown=querylens:querylens app ./app
 COPY --chown=querylens:querylens migrations ./migrations
+COPY --chown=querylens:querylens scripts ./scripts
 COPY --chown=querylens:querylens alembic.ini ./
 
 USER querylens

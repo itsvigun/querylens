@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 from sqlalchemy.engine import make_url
 
-from app.config import Settings
+from app.config import AnalyticsSettings, Settings
 
 
 def test_password_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -44,3 +44,15 @@ def test_environment_overrides_dotenv(tmp_path: Path, monkeypatch: pytest.Monkey
     monkeypatch.setenv("POSTGRES_HOST", "db")
     settings = Settings(_env_file=dotenv)
     assert settings.postgres_host == "db"
+
+
+def test_reader_settings_cannot_fall_back_to_owner_credentials(monkeypatch) -> None:
+    monkeypatch.setenv("POSTGRES_USER", "querylens")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "owner-only-password")
+    monkeypatch.delenv("ANALYTICS_READONLY_PASSWORD", raising=False)
+    with pytest.raises(ValidationError):
+        AnalyticsSettings(_env_file=None)
+    monkeypatch.setenv("ANALYTICS_READONLY_PASSWORD", "dedicated-reader-password")
+    settings = AnalyticsSettings(_env_file=None)
+    assert settings.database_url.username == "querylens_analytics_ro"
+    assert settings.database_url.password == "dedicated-reader-password"

@@ -3,9 +3,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 
 from app.config import Settings
+from app.db.schema import metadata
 
-# ORM metadata will be added with the analytics tables in stage 1.
-target_metadata = None
+target_metadata = metadata
 
 
 def run_migrations_offline() -> None:
@@ -29,7 +29,9 @@ def run_migrations_online() -> None:
     )
     try:
         with engine.connect() as connection:
-            context.configure(connection=connection, target_metadata=target_metadata)
+            context.configure(
+                connection=connection, target_metadata=target_metadata, include_schemas=True
+            )
             with context.begin_transaction():
                 context.run_migrations()
     finally:

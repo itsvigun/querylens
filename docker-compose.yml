@@ -1,7 +1,7 @@
 x-app: &app
   image: querylens-api:local
   build: .
-  environment:
+  environment: &app-environment
     POSTGRES_HOST: db
     POSTGRES_PORT: 5432
     POSTGRES_USER: ${POSTGRES_USER:-querylens}
@@ -51,6 +51,30 @@ services:
     <<: *app
     profiles: ["tools"]
     command: ["alembic", "upgrade", "head"]
+
+  provision-roles:
+    <<: *app
+    profiles: ["tools"]
+    environment:
+      <<: *app-environment
+      ANALYTICS_READONLY_PASSWORD: ${ANALYTICS_READONLY_PASSWORD:-}
+      KNOWLEDGE_WRITER_PASSWORD: ${KNOWLEDGE_WRITER_PASSWORD:-}
+    command: ["python", "-m", "scripts.provision_roles"]
+
+  seed:
+    <<: *app
+    profiles: ["tools"]
+    command: ["python", "-m", "scripts.seed"]
+
+  verify-data:
+    <<: *app
+    profiles: ["tools"]
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      ANALYTICS_READONLY_PASSWORD: ${ANALYTICS_READONLY_PASSWORD:-}
+      POSTGRES_DB: ${POSTGRES_DB:-querylens}
+    command: ["python", "-m", "scripts.verify_data"]
 
 volumes:
   postgres_data:
