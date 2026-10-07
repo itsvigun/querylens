@@ -13,6 +13,15 @@ x-app: &app
     db:
       condition: service_healthy
 
+x-embeddings: &embedding-environment
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  EMBEDDING_PROVIDER: ${EMBEDDING_PROVIDER:-openai}
+  EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+  EMBEDDING_DIMENSIONS: ${EMBEDDING_DIMENSIONS:-1536}
+  EMBEDDING_INDEX_VERSION: ${EMBEDDING_INDEX_VERSION:-v1}
+  KNOWLEDGE_INDEX_NAME: ${KNOWLEDGE_INDEX_NAME:-default}
+  EMBEDDING_TIMEOUT_SECONDS: ${EMBEDDING_TIMEOUT_SECONDS:-20}
+
 services:
   db:
     image: pgvector/pgvector:0.8.6-pg17-bookworm
@@ -59,6 +68,7 @@ services:
       <<: *app-environment
       ANALYTICS_READONLY_PASSWORD: ${ANALYTICS_READONLY_PASSWORD:-}
       KNOWLEDGE_WRITER_PASSWORD: ${KNOWLEDGE_WRITER_PASSWORD:-}
+      KNOWLEDGE_READONLY_PASSWORD: ${KNOWLEDGE_READONLY_PASSWORD:-}
     command: ["python", "-m", "scripts.provision_roles"]
 
   seed:
@@ -89,6 +99,40 @@ services:
       SQL_STATEMENT_TIMEOUT_MS: ${SQL_STATEMENT_TIMEOUT_MS:-5000}
       SQL_TOOL_TIMEOUT_MS: ${SQL_TOOL_TIMEOUT_MS:-10000}
     command: ["python", "-m", "scripts.query"]
+
+  ingest:
+    <<: *app
+    profiles: ["tools"]
+    environment:
+      <<: *embedding-environment
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-querylens}
+      KNOWLEDGE_WRITER_PASSWORD: ${KNOWLEDGE_WRITER_PASSWORD:-}
+    command: ["python", "-m", "scripts.ingest"]
+
+  search:
+    <<: *app
+    profiles: ["tools"]
+    environment:
+      <<: *embedding-environment
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-querylens}
+      KNOWLEDGE_READONLY_PASSWORD: ${KNOWLEDGE_READONLY_PASSWORD:-}
+    command: ["python", "-m", "scripts.search", "How is ARPU calculated?"]
+
+  verify-retrieval:
+    <<: *app
+    profiles: ["tools"]
+    environment:
+      <<: *embedding-environment
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-querylens}
+      KNOWLEDGE_READONLY_PASSWORD: ${KNOWLEDGE_READONLY_PASSWORD:-}
+      KNOWLEDGE_WRITER_PASSWORD: ${KNOWLEDGE_WRITER_PASSWORD:-}
+    command: ["python", "-m", "scripts.verify_retrieval", "--live"]
 
 volumes:
   postgres_data:

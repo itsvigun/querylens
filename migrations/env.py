@@ -4,6 +4,7 @@ from sqlalchemy.pool import NullPool
 
 from app.config import Settings
 from app.db.schema import metadata
+from app.rag import schema as knowledge_schema  # noqa: F401
 
 target_metadata = metadata
 

@@ -12,6 +12,7 @@ from app.config import Settings
 
 ANALYTICS_ROLE = "querylens_analytics_ro"
 KNOWLEDGE_ROLE = "querylens_knowledge_writer"
+KNOWLEDGE_READER_ROLE = "querylens_knowledge_ro"
 
 
 class RolePasswords(BaseSettings):
@@ -19,6 +20,7 @@ class RolePasswords(BaseSettings):
 
     analytics_readonly_password: SecretStr = Field(min_length=16)
     knowledge_writer_password: SecretStr = Field(min_length=16)
+    knowledge_readonly_password: SecretStr = Field(min_length=16)
 
 
 def provision_roles(settings: Settings, passwords: RolePasswords) -> None:
@@ -37,10 +39,14 @@ def provision_roles(settings: Settings, passwords: RolePasswords) -> None:
     ) as connection:
         with connection.cursor() as cursor:
             cursor.execute("SELECT pg_advisory_xact_lock(716202601)")
-            for role, password, schema in (
+            profiles = (
                 (ANALYTICS_ROLE, passwords.analytics_readonly_password, "analytics"),
                 (KNOWLEDGE_ROLE, passwords.knowledge_writer_password, "knowledge"),
-            ):
+                (KNOWLEDGE_READER_ROLE, passwords.knowledge_readonly_password, "knowledge"),
+            )
+            if len({password.get_secret_value() for _, password, _ in profiles}) != 3:
+                raise ValueError("Dedicated role passwords must differ")
+            for role, password, schema in profiles:
                 if password.get_secret_value() == settings.postgres_password.get_secret_value():
                     raise ValueError("Role passwords must differ from the administrator password")
                 cursor.execute("SELECT 1 FROM pg_roles WHERE rolname = %s", (role,))
@@ -81,7 +87,7 @@ def provision_roles(settings: Settings, passwords: RolePasswords) -> None:
                     ("timezone", "UTC"),
                     ("statement_timeout", "5000"),
                     ("lock_timeout", "1000"),
-                    ("default_transaction_read_only", "on" if role == ANALYTICS_ROLE else "off"),
+                    ("default_transaction_read_only", "off" if role == KNOWLEDGE_ROLE else "on"),
                 ):
                     cursor.execute(
                         sql.SQL("ALTER ROLE {} SET {} TO %s").format(
@@ -102,7 +108,7 @@ def provision_roles(settings: Settings, passwords: RolePasswords) -> None:
             cursor.execute("REVOKE CREATE ON SCHEMA public FROM PUBLIC")
             cursor.execute("REVOKE ALL ON SCHEMA analytics, knowledge FROM PUBLIC")
             cursor.execute("REVOKE ALL ON ALL TABLES IN SCHEMA analytics, knowledge FROM PUBLIC")
-            for role in (ANALYTICS_ROLE, KNOWLEDGE_ROLE):
+            for role, _, _ in profiles:
                 identifier = sql.Identifier(role)
                 cursor.execute(
                     sql.SQL("REVOKE ALL ON DATABASE {} FROM {}").format(database, identifier)
@@ -164,6 +170,21 @@ def provision_roles(settings: Settings, passwords: RolePasswords) -> None:
                     "GRANT USAGE, SELECT ON SEQUENCES TO {}"
                 ).format(sql.Identifier(KNOWLEDGE_ROLE))
             )
+            cursor.execute(
+                sql.SQL("GRANT USAGE ON SCHEMA knowledge TO {}").format(
+                    sql.Identifier(KNOWLEDGE_READER_ROLE)
+                )
+            )
+            cursor.execute(
+                sql.SQL("GRANT SELECT ON ALL TABLES IN SCHEMA knowledge TO {}").format(
+                    sql.Identifier(KNOWLEDGE_READER_ROLE)
+                )
+            )
+            cursor.execute(
+                sql.SQL(
+                    "ALTER DEFAULT PRIVILEGES IN SCHEMA knowledge GRANT SELECT ON TABLES TO {}"
+                ).format(sql.Identifier(KNOWLEDGE_READER_ROLE))
+            )
 
 
 def main() -> int:
@@ -175,7 +196,7 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-    print("Provisioned analytics read-only and knowledge writer roles.")
+    print("Provisioned analytics reader, knowledge reader, and knowledge writer roles.")
     return 0
 
 
