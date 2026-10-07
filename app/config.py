@@ -95,3 +95,19 @@ class EmbeddingSettings(BaseSettings):
         if self.embedding_model == "text-embedding-3-small" and self.embedding_dimensions > 1536:
             raise ValueError("The small embedding model supports at most 1536 dimensions")
         return self
+
+
+class LLMSettings(BaseSettings):
+    """Separate from the embedding model and vector space configuration."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
+
+    llm_model: Literal["gpt-5.4-mini"] = "gpt-5.4-mini"
+    openai_api_key: SecretStr | None = None
+    llm_timeout_seconds: float = Field(default=20, ge=1, le=30)
+    request_timeout_seconds: float = Field(default=60, ge=1, le=120)
+    llm_max_calls: int = Field(default=6, ge=1, le=6)
+    llm_max_tool_calls: int = Field(default=8, ge=1, le=8)
+    llm_max_sql_calls: int = Field(default=3, ge=1, le=3)
+    llm_max_input_bytes: int = Field(default=128000, ge=1000, le=128000)
+    llm_max_output_tokens: int = Field(default=4000, ge=256, le=4000)
