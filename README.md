@@ -3,12 +3,13 @@
 QueryLens is being built to answer business questions using documentation
 retrieval, LLM tool calling, and read-only SQL over synthetic PostgreSQL data.
 
-**Current status: stage 3 — documentation ingestion and retrieval; live verification pending.**
+**Current status: stage 4 — OpenAI tool calling implemented; live verification pending.**
 The API foundation, analytics schema, dedicated database roles, reproducible seed,
 control SQL, reviewed schema metadata, SQL execution tool, and embedding/retrieval
-commands are implemented. Offline and PostgreSQL checks pass; live OpenAI retrieval
-verification is pending an API key. LLM tool calling and a demo UI come next.
-The API foundation and tests need no API key; real ingestion/search do.
+commands, Responses adapter, validated tool dispatch, and a bounded chat endpoint
+are implemented. Offline and PostgreSQL checks pass; live OpenAI retrieval and
+tool-calling acceptance are pending an API key. LangGraph and a demo UI come next.
+Startup, health checks and offline tests need no API key; real ingestion/search/chat do.
 
 ## Stack
 
@@ -17,7 +18,7 @@ The API foundation and tests need no API key; real ingestion/search do.
 - SQLAlchemy 2.0 and psycopg2 for PostgreSQL connections.
 - Alembic for explicit database migrations.
 - SQLGlot 30.21.0 for a fail-closed PostgreSQL AST policy.
-- OpenAI SDK 3.26.0 for embeddings and pgvector Python 0.5.0 for vector SQLAlchemy types.
+- OpenAI SDK 3.26.0 for embeddings and Responses; pgvector Python 0.5.0 for vector types.
 - PostgreSQL 17 with pgvector 0.8.6, running in Docker Compose.
 - pytest, HTTPX2, and Ruff for local checks.
 
@@ -131,13 +132,21 @@ dotenv keys are ignored so Compose-only settings can share the same file.
 | `SQL_MAX_RESULT_BYTES` | `65536` | Entire compact UTF-8 JSON response budget, from 1024 to 1048576 bytes |
 | `SQL_STATEMENT_TIMEOUT_MS` | `5000` | SQL statement/fetch timeout, from 10 to 10000 ms |
 | `SQL_TOOL_TIMEOUT_MS` | `10000` | Cooperative SQL tool budget, from 100 to 30000 ms |
-| `OPENAI_API_KEY` | Empty | Server-side secret for real embeddings; not needed by offline tests |
-| `EMBEDDING_PROVIDER` | `openai` | Embedding provider, separate from future LLM settings |
+| `OPENAI_API_KEY` | Empty | Server-side secret for embeddings and Responses; not needed by offline tests |
+| `EMBEDDING_PROVIDER` | `openai` | Embedding provider, separate from LLM settings |
 | `EMBEDDING_MODEL` | `text-embedding-3-small` | Small or text-embedding-3-large |
 | `EMBEDDING_DIMENSIONS` | `1536` | At most 1536 for small, 3072 for large |
 | `EMBEDDING_INDEX_VERSION` | `v1` | Application vector-space version; changes require reindexing |
 | `KNOWLEDGE_INDEX_NAME` | `default` | Server-selected named corpus/index |
 | `EMBEDDING_TIMEOUT_SECONDS` | `20` | Per-provider request timeout, from 1 to 30 seconds |
+| `LLM_MODEL` | `gpt-5.4-mini` | Verified Responses/tool-calling contract; separate from embeddings |
+| `LLM_TIMEOUT_SECONDS` | `20` | Per-Responses-request timeout, at most 30 seconds |
+| `REQUEST_TIMEOUT_SECONDS` | `60` | Cooperative deadline for one question, at most 120 seconds |
+| `LLM_MAX_CALLS` | `6` | Maximum Responses requests per question |
+| `LLM_MAX_TOOL_CALLS` | `8` | Maximum dispatched tools per question |
+| `LLM_MAX_SQL_CALLS` | `3` | Total SQL attempts, including rejected/failed queries |
+| `LLM_MAX_INPUT_BYTES` | `128000` | Cumulative serialized request bytes, plus protocol allowances |
+| `LLM_MAX_OUTPUT_TOKENS` | `4000` | Total output-token allowance; at most 1000 per request |
 
 Database sessions use UTC and a one-second lock timeout. The SQL tool applies its
 own limits and can accept a shorter absolute monotonic deadline from server code.
@@ -337,7 +346,8 @@ default to 16 KiB, with explicit truncation. Similarity below 0.2 is excluded;
 no qualifying source yields `insufficient_context`. The threshold is a heuristic,
 not a relevance guarantee; similarity is not a confidence probability. Retrieved
 text is untrusted data and cannot change tools/permissions. The SQL validator
-continues to exclude all knowledge relations. No answer generation is performed.
+continues to exclude all knowledge relations. Retrieval itself does not generate answers;
+the separate tool-calling session uses its output.
 
 The adapter batches at most 16 inputs and disables SDK retries. UTF-8 byte count
 conservatively bounds byte-level BPE tokens, avoiding runtime tokenizer downloads.
@@ -362,6 +372,79 @@ This uses real embeddings and never substitutes stub vectors. Offline tests mock
 provider transport; PostgreSQL tests use labeled stub geometry for vector storage,
 ranking, constraints, permissions, and atomicity. Those tests do not establish
 semantic retrieval quality.
+
+## OpenAI Responses and tool calling
+
+The adapter follows the official [function-calling guide](https://developers.openai.com/api/docs/guides/function-calling)
+and [structured-output guide](https://developers.openai.com/api/docs/guides/structured-outputs).
+The configured [gpt-5.4-mini model](https://developers.openai.com/api/docs/models/gpt-5.4-mini)
+supports Responses, function calling and structured outputs. Documentation was checked
+on 2026-10-07; account access and live behavior remain unverified.
+
+The backend declares exactly three strict JSON function schemas:
+`get_database_schema`, `search_documentation`, and `execute_sql`. OpenAI returns
+`function_call` items; the server validates arguments with Pydantic and dispatches
+only those names. Tools execute sequentially even if a response requests several.
+Matching `function_call_output` items go back to the model, together with prior
+output items, including reasoning when present. Requests use `store=False`, no
+conversation IDs, no streaming, `reasoning.effort=none`, explicit timeouts, and
+zero SDK retries. No provider call happens during web startup or health checks.
+
+SQL requires successful schema and documentation tools first. Tool arguments cannot
+choose roles, credentials, model, index, deadlines or limits. Chat SQL results are
+limited to at most 50 rows and 12000 bytes, retaining any stricter SQL settings.
+Final answers contain explanation, source IDs and facts referencing a successful
+query ID and zero-based row/column. The server validates the references and inserts
+actual cell values, preserving Decimal money strings and undefined NULLs. Numeric
+claims in model prose are rejected; arithmetic must happen in SQL. Responses also
+include executed SQL/results, source content/citations, sanitized trace, usage,
+demo reference date and truncation warnings. Reference checks establish value
+provenance; they do not prove that SQL, fact labels or prose correctly interpret a
+question. Broader semantic evaluation belongs to the evaluation milestone.
+
+After migrations, role provisioning, seed and **real ingestion**:
+
+```bash
+uv run --locked python -m scripts.ask 'What was revenue last month, in EUR?'
+# Or:
+docker compose run --rm ask python -m scripts.ask 'What was revenue last month, in EUR?'
+```
+
+The non-streaming endpoint is available in `/docs`:
+
+```bash
+curl --fail http://127.0.0.1:8000/api/chat \
+  -H 'Content-Type: application/json' \
+  -d '{"question":"What was revenue last month, in EUR?"}'
+```
+
+The API accepts only a question of up to 2000 UTF-8 bytes. It allows one active chat
+per process and returns HTTP 429 for another concurrent request. A tool/provider
+failure returns a structured `status=error` result; clarification and insufficient
+context are separate statuses. CLI exits nonzero on error. No UI or LangGraph yet;
+this milestone uses a small bounded Python loop. SQL attempts include repairs, so
+three attempts allow at most two repairs after the initial query. Deadlines are
+cooperative and cannot guarantee a hard network wall-clock cutoff. In-memory
+concurrency limits are not a shared deployment rate/cost budget.
+
+Explicit paid acceptance uses one revenue question and checks actual reference
+value `336080.07`, schema/retrieval/SQL tools and the revenue source:
+
+```bash
+uv run --locked python -m scripts.verify_tool_calling --live
+# Or:
+docker compose run --rm verify-tool-calling
+```
+
+It requires a compatible ingested index and never replaces OpenAI with a stub.
+It caps cumulative request bytes at 40000 and total output at 2000 tokens.
+The documented model prices on 2026-10-07 are $0.75/M input and $4.50/M output:
+a conservative input-byte/token estimate is $0.039 for Responses, plus small-model
+query embeddings at most $0.00032. Adding the separate retrieval smoke budget
+($0.005) estimates under $0.05 overall. This is not an account billing limit;
+reported provider usage is authoritative, failed requests may have unknown usage,
+and no live check has run yet. Ordinary chat uses the larger configured budgets.
+Model aliases can change; changing the LLM does not change the embedding index.
 
 ## Metric documentation and control SQL
 
@@ -488,11 +571,27 @@ containers, volumes, source, secrets, and probe indexes were removed.
 Live OpenAI retrieval has not run: an API key is still required. Stage 3
 acceptance remains pending that explicit paid smoke check.
 
+Stage 4 implementation checks on 2026-10-07: 177 offline and 70 PostgreSQL
+integration tests passed (247 total). New checks cover actual SDK Responses JSON,
+reasoning/output replay, strict schemas, sanitized API failures/refusals/timeouts,
+arguments/context gates, cell/source provenance, undefined and empty results,
+concurrency, malformed Unicode and bounded call/context/output budgets. Four
+PostgreSQL end-to-end scenarios use offline Responses transport and labeled stub
+embeddings: revenue, column repair, rejected writes and excluded knowledge access.
+Ruff lint/format, lockfile validation and Alembic metadata checks passed.
+A fresh Docker source copy/new volume passed the README foundation setup, HTTP
+live/ready/demo/OpenAPI checks, safe missing-key chat failure, reader-only job
+credential/image checks, and the four new PostgreSQL scenarios. Temporary
+containers/volumes/source/secrets were removed. The main API was rebuilt and left
+healthy with `/api/chat` available. No new dependency versions were introduced.
+Live Responses acceptance has not run; stages 3 and 4 remain pending live checks.
+
 ## Scope and next steps
 
 This is a local foundation, with no deployed demo yet. The local database owner
 currently serves health/migration paths; validated SQL uses a separate reader.
-There is no public SQL endpoint or LLM workflow. Knowledge ingestion and exact
-retrieval are implemented; live verification is pending an embedding API key.
+Knowledge ingestion, exact retrieval and bounded Responses tool calling are
+implemented; live acceptance for stages 3 and 4 is pending an API key. The API is
+bound to loopback by Compose. No deployed demo or semantic-quality claim is made.
 
-Next after live stage 3 acceptance: OpenAI Responses API with real tool calls.
+Next after live acceptance: LangGraph orchestration, followed by the demo UI.

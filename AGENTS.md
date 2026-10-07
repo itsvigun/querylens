@@ -106,7 +106,7 @@ access, and preserve structured failure/truncation metadata. Real PostgreSQL
 tests cover transaction identity, row/byte limits, statement/lock timeouts,
 caller deadlines, and recovery. Do not describe the cooperative tool deadline
 as a hard network wall-clock guarantee or returned-byte limits as database memory
-limits. Global workflow/retry budgets remain stage 5 work.
+limits. Stage 4 supplies a first bounded loop; stage 5 moves orchestration to LangGraph.
 
 Stage 3 uses explicit `scripts.ingest` and `scripts.search` jobs, with separate
 knowledge writer/reader credentials. Keep vector-space settings and application
@@ -118,6 +118,16 @@ contracts/storage/safety, not semantic quality. Run `scripts.verify_retrieval
 --live` separately with an explicit budget/key before marking live acceptance
 complete. Foundation health readiness does not yet represent end-to-end AI
 readiness; retrieval itself checks index compatibility.
+
+Stage 4 uses `app/llm/` and validated `app/tools/dispatch.py` with the Responses
+API, three strict function schemas, stateless output replay, and zero SDK retries.
+Keep LLM settings independent of embeddings. `scripts.ask` and `/api/chat` use
+only dedicated readers in tools; startup/health must not invoke providers.
+Numeric facts reference actual SQL cells and source IDs; validate them server-side.
+This proves provenance, not semantic correctness of chosen queries or prose.
+Track actual usage, bounded failures, deadlines and attempts. Keep LangGraph for
+stage 5. Run `scripts.verify_tool_calling --live` separately with an explicit
+budget/key before marking stage 4 live acceptance complete.
 
 - Use pytest and Ruff. Run checks relevant to the change and report their results.
 - Keep offline tests and CI deterministic and independent of paid API keys. Use
