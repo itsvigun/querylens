@@ -12,3 +12,4 @@ htmlcov/
 build/
 dist/
 .DS_Store
+/QUERYLENS_PLAN.md

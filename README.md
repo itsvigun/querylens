@@ -172,6 +172,5 @@ currently serves the health and migration paths. Stage 1 will add separate roles
 and grants for analytics and knowledge storage; the future model-generated SQL
 tool will use its own read-only credentials.
 
-The complete architecture, acceptance criteria, and current handoff are in
-[`QUERYLENS_PLAN.md`](QUERYLENS_PLAN.md). Next: analytics schema, roles, reproducible
-synthetic seed data, and metric documentation.
+Next: analytics schema, roles, reproducible synthetic seed data, and metric
+documentation.
