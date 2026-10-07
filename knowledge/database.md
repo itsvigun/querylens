@@ -1,9 +1,8 @@
 # Database schema
 
 QueryLens uses one PostgreSQL database. The `analytics` schema contains synthetic
-business data. The separate `knowledge` schema is reserved for later document
-ingestion; no document/vector tables have been implemented yet. The pgvector
-extension is installed in `public`. Migrations use Alembic.
+business data. The separate `knowledge` schema stores document metadata and
+embeddings. The pgvector extension is installed in `public`. Migrations use Alembic.
 
 ## analytics.users
 
@@ -68,6 +67,27 @@ this cross-table temporal rule is not a database check constraint.
 Identifiers are assigned by the generator, so analytics tables need no sequences.
 The migration owner owns the tables; reader and knowledge writer own no objects.
 
+## knowledge indexes and chunks
+
+`knowledge.indexes` records each named corpus's embedding provider, model,
+dimensions, application index version, chunker version, corpus hash, chunk count,
+and UTC update time. These fields define a vector space; retrieval rejects an
+incompatible space before making an embedding request. A setting change requires
+an explicit reindex. Provider model aliases can evolve, so bump the application
+index version and rebuild when intentionally adopting a changed embedding space.
+
+`knowledge.chunks` stores a stable chunk id, source path, heading, ordinal,
+source line range, document/content hashes, text, dimensions, and a pgvector
+embedding. Constraints enforce matching index dimensions, nonzero vectors,
+valid source positions, and content up to 2000 UTF-8 bytes. No approximate vector
+index is used: the small corpus uses exact cosine-distance search.
+
+Ingestion is an explicit command with the knowledge writer. It replaces a
+complete named snapshot transactionally, reuses unchanged content embeddings,
+and removes stale chunks. Searches keep seeing the previous complete snapshot
+until commit. Retrieved documents are untrusted context; they cannot grant SQL
+permissions or add tools. Cosine similarity is not a confidence probability.
+
 ## Access roles
 
 `querylens_analytics_ro` has CONNECT, analytics USAGE, and SELECT on exactly the
@@ -80,7 +100,13 @@ on knowledge tables, plus sequence USAGE/SELECT. Default grants apply to future
 knowledge objects created by the migration owner. It has no analytics access
 or schema CREATE privilege.
 
-Both login roles are non-superusers, with no role memberships, CREATEDB,
+`querylens_knowledge_ro` has knowledge USAGE and SELECT on knowledge tables,
+including future tables created by the migration owner. It has no analytics
+access, writes, sequence privileges, schema CREATE, or role memberships.
+Searches use server-controlled read-only transactions and protected search path
+pg_catalog, public, knowledge, because pgvector operators live in public.
+
+All three dedicated login roles are non-superusers, with no role memberships, CREATEDB,
 CREATEROLE, replication, or BYPASSRLS. Passwords are distinct and stored only in
 local/server secrets. Role provisioning is a separate administrator command for
 a dedicated QueryLens PostgreSQL cluster. It also revokes PUBLIC database

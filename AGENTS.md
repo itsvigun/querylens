@@ -108,6 +108,17 @@ caller deadlines, and recovery. Do not describe the cooperative tool deadline
 as a hard network wall-clock guarantee or returned-byte limits as database memory
 limits. Global workflow/retry budgets remain stage 5 work.
 
+Stage 3 uses explicit `scripts.ingest` and `scripts.search` jobs, with separate
+knowledge writer/reader credentials. Keep vector-space settings and application
+index/chunker versions with each named corpus. Setting changes require explicit
+reindex; ingestion must atomically preserve the previous index on failure and
+reuse unchanged embeddings. `scripts.ingest --dry-run` needs no DB/API access.
+Offline provider tests and PostgreSQL tests with labeled stub vectors establish
+contracts/storage/safety, not semantic quality. Run `scripts.verify_retrieval
+--live` separately with an explicit budget/key before marking live acceptance
+complete. Foundation health readiness does not yet represent end-to-end AI
+readiness; retrieval itself checks index compatibility.
+
 - Use pytest and Ruff. Run checks relevant to the change and report their results.
 - Keep offline tests and CI deterministic and independent of paid API keys. Use
   stub providers for offline workflow tests; keep live smoke tests/evaluation

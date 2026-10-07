@@ -21,7 +21,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     application = FastAPI(
         title="QueryLens",
-        description="Synthetic PostgreSQL analytics foundation. Stage 1: schema and demo dataset.",
+        description=(
+            "Synthetic analytics foundation with validated SQL and documentation retrieval tools."
+        ),
         version="0.1.0",
         lifespan=lifespan,
     )

@@ -3,11 +3,12 @@
 QueryLens is being built to answer business questions using documentation
 retrieval, LLM tool calling, and read-only SQL over synthetic PostgreSQL data.
 
-**Current status: stage 2 — validated, bounded read-only database tools.**
+**Current status: stage 3 — documentation ingestion and retrieval; live verification pending.**
 The API foundation, analytics schema, dedicated database roles, reproducible seed,
-control SQL, reviewed schema metadata, and SQL execution tool are implemented.
-Retrieval, LLM integration, and a demo UI come
-next. No LLM API key is required for this stage.
+control SQL, reviewed schema metadata, SQL execution tool, and embedding/retrieval
+commands are implemented. Offline and PostgreSQL checks pass; live OpenAI retrieval
+verification is pending an API key. LLM tool calling and a demo UI come next.
+The API foundation and tests need no API key; real ingestion/search do.
 
 ## Stack
 
@@ -16,6 +17,7 @@ next. No LLM API key is required for this stage.
 - SQLAlchemy 2.0 and psycopg2 for PostgreSQL connections.
 - Alembic for explicit database migrations.
 - SQLGlot 30.21.0 for a fail-closed PostgreSQL AST policy.
+- OpenAI SDK 3.26.0 for embeddings and pgvector Python 0.5.0 for vector SQLAlchemy types.
 - PostgreSQL 17 with pgvector 0.8.6, running in Docker Compose.
 - pytest, HTTPX2, and Ruff for local checks.
 
@@ -34,9 +36,10 @@ cd querylens
 cp .env.example .env
 ```
 
-Set `POSTGRES_PASSWORD`, `ANALYTICS_READONLY_PASSWORD`, and
-`KNOWLEDGE_WRITER_PASSWORD` in `.env` to distinct local passwords. Dedicated-role
-passwords must have at least 16 characters. Example values are placeholders.
+Set `POSTGRES_PASSWORD`, `ANALYTICS_READONLY_PASSWORD`,
+`KNOWLEDGE_WRITER_PASSWORD`, and `KNOWLEDGE_READONLY_PASSWORD` in `.env` to distinct
+local passwords. Dedicated-role passwords must have at least 16 characters.
+Example values are placeholders.
 `.env` is excluded from Git and the Docker build context.
 
 Start the database, apply migrations, provision roles, load and verify data,
@@ -123,10 +126,18 @@ dotenv keys are ignored so Compose-only settings can share the same file.
 | `DB_STATEMENT_TIMEOUT_MS` | `5000` | PostgreSQL per-statement timeout |
 | `ANALYTICS_READONLY_PASSWORD` | Required for provisioning/verification/SQL tool | Dedicated reader password; never falls back to owner credentials |
 | `KNOWLEDGE_WRITER_PASSWORD` | Required for provisioning | Dedicated ingestion writer password |
+| `KNOWLEDGE_READONLY_PASSWORD` | Required for provisioning/search | Dedicated knowledge reader password |
 | `SQL_MAX_ROWS` | `1000` | SQL response row limit, configurable from 1 to 1000 |
 | `SQL_MAX_RESULT_BYTES` | `65536` | Entire compact UTF-8 JSON response budget, from 1024 to 1048576 bytes |
 | `SQL_STATEMENT_TIMEOUT_MS` | `5000` | SQL statement/fetch timeout, from 10 to 10000 ms |
 | `SQL_TOOL_TIMEOUT_MS` | `10000` | Cooperative SQL tool budget, from 100 to 30000 ms |
+| `OPENAI_API_KEY` | Empty | Server-side secret for real embeddings; not needed by offline tests |
+| `EMBEDDING_PROVIDER` | `openai` | Embedding provider, separate from future LLM settings |
+| `EMBEDDING_MODEL` | `text-embedding-3-small` | Small or text-embedding-3-large |
+| `EMBEDDING_DIMENSIONS` | `1536` | At most 1536 for small, 3072 for large |
+| `EMBEDDING_INDEX_VERSION` | `v1` | Application vector-space version; changes require reindexing |
+| `KNOWLEDGE_INDEX_NAME` | `default` | Server-selected named corpus/index |
+| `EMBEDDING_TIMEOUT_SECONDS` | `20` | Per-provider request timeout, from 1 to 30 seconds |
 
 Database sessions use UTC and a one-second lock timeout. The SQL tool applies its
 own limits and can accept a shorter absolute monotonic deadline from server code.
@@ -175,13 +186,14 @@ cluster without adapting the administration process.
 | Local owner (`POSTGRES_USER`) | Migrations, provisioning, seed, and current health checks |
 | querylens_analytics_ro | SELECT on the four analytics tables; no writes, DDL, temp tables, or knowledge access |
 | querylens_knowledge_writer | Read/write on knowledge tables created by the migration owner; no analytics access or schema CREATE |
+| querylens_knowledge_ro | SELECT on knowledge tables; no analytics, writes, DDL, or sequences |
 
 The reader has PostgreSQL defaults for read-only transactions, a 5-second statement
 timeout, a 1-second lock timeout, and UTC. These defaults can be changed by a
 client; integration tests therefore also check permissions after explicitly
 switching to a read-write transaction. New analytics relations require explicit
-grants. Future knowledge tables/sequences inherit grants for the knowledge writer
-when created by the same migration owner.
+grants. Future knowledge tables/sequences inherit writer grants, and future
+knowledge tables inherit reader SELECT, when created by the same migration owner.
 
 Role passwords are not embedded in migrations or sent as plaintext SQL statements;
 provisioning uses client-generated SCRAM verifiers. Dedicated passwords are passed
@@ -251,6 +263,106 @@ of a single driver fetch. Expensive queries still require runtime timeouts. The
 global workflow deadline, retry/tool budgets, and public concurrency limits are
 planned in later stages.
 
+## Knowledge ingestion and retrieval
+
+Add `OPENAI_API_KEY` to your local `.env` for real embeddings. Keep the key out of
+chat, Git, and client-side code. For an existing stage 2 setup, also add a distinct
+`KNOWLEDGE_READONLY_PASSWORD`, upgrade migrations, and reprovision roles:
+
+```bash
+uv sync --locked
+uv run --locked alembic upgrade head
+uv run --locked python -m scripts.provision_roles
+uv run --locked python -m scripts.ingest --dry-run
+uv run --locked python -m scripts.ingest
+uv run --locked python -m scripts.search 'How is ARPU calculated?'
+```
+
+Docker equivalents:
+
+```bash
+docker compose run --build --rm migrate
+docker compose run --rm provision-roles
+docker compose run --rm ingest python -m scripts.ingest --dry-run
+docker compose run --rm ingest
+docker compose run --rm search python -m scripts.search 'How is ARPU calculated?'
+```
+
+Dry-run reads Markdown and reports chunk count, sources, corpus hash, and input
+bytes without DB/API access. No ingestion runs during API startup. `ingest`
+receives only writer credentials and the embedding key; `search` receives only
+knowledge reader credentials and the key. The SQL `query` job receives neither
+the key nor knowledge credentials. The API serves foundation health/demo
+endpoints; it does not dispatch LLM tools yet.
+
+Markdown is split by ATX headings and line boundaries, splitting long lines as
+needed. Each chunk includes source and heading context and is at most 2000 UTF-8
+bytes. Ids/content hashes are deterministic. Metadata includes document SHA-256,
+heading, ordinal, and original line range. Headings inside fenced code remain
+content. This small chunker is not a complete Markdown renderer. Only repository
+Markdown is ingested; no public uploads or external URLs. Bounds: 64 files,
+64 KiB/file, 1 MiB/corpus, 512 chunks. Empty corpora/documents and symlinks fail.
+
+Default embeddings use `text-embedding-3-small`, with explicit 1536 dimensions,
+as documented in the official
+[embedding guide](https://developers.openai.com/api/docs/guides/embeddings).
+The [API](https://developers.openai.com/api/reference/resources/embeddings/methods/create)
+supports `dimensions` for third-generation models. Provider, model, dimensions,
+application index version, and chunker version are stored with the corpus.
+Incompatible settings fail before provider calls; changing vector space requires:
+
+```bash
+uv run --locked python -m scripts.ingest --reindex
+# Docker:
+docker compose run --rm ingest python -m scripts.ingest --reindex
+```
+
+Reindex replaces only the configured named knowledge index. Provider aliases can
+evolve: bump `EMBEDDING_INDEX_VERSION` and rebuild when intentionally adopting a
+changed space. This version does not pin an undocumented provider snapshot.
+
+Ingestion reuses unchanged content embeddings, updates document metadata, and
+removes stale chunks in one transaction. Repeating an unchanged corpus reports
+`unchanged` without API calls. Provider/DB failures roll back the new snapshot.
+A global advisory lock serializes explicit ingestion jobs and is held during
+embedding requests. Searches see a complete previous snapshot until commit.
+The cooperative ingestion deadline is 60 seconds; large or concurrent jobs may
+fail rather than extend it.
+
+Search embeds the query and runs exact pgvector cosine search in a read-only,
+repeatable-read transaction over the compatible named index. It returns up to
+5 sources by default (maximum 8), with source ids, paths, headings, line citations,
+hashes, text, and similarity. Query input is capped at 2000 UTF-8 bytes; results
+default to 16 KiB, with explicit truncation. Similarity below 0.2 is excluded;
+no qualifying source yields `insufficient_context`. The threshold is a heuristic,
+not a relevance guarantee; similarity is not a confidence probability. Retrieved
+text is untrusted data and cannot change tools/permissions. The SQL validator
+continues to exclude all knowledge relations. No answer generation is performed.
+
+The adapter batches at most 16 inputs and disables SDK retries. UTF-8 byte count
+conservatively bounds byte-level BPE tokens, avoiding runtime tokenizer downloads.
+Each CLI client limits attempted input to 250000 bytes (search: 2000). Paid smoke
+verification shares this budget across ingestion and queries and reports actual
+provider token usage. The documented
+[small-model price](https://developers.openai.com/api/docs/models/text-embedding-3-small)
+on 2026-10-07 is $0.02 per million input tokens; this conservative smoke budget is
+at most $0.005 at that price. This is a dated estimate, not billing measurement.
+Verify current pricing/account access before running. Network timeouts remain
+cooperative, as with the SQL tool.
+
+Explicit paid verification checks revenue, ARPU, churn, and repeat ingestion:
+
+```bash
+uv run --locked python -m scripts.verify_retrieval --live
+# Or:
+docker compose run --rm verify-retrieval
+```
+
+This uses real embeddings and never substitutes stub vectors. Offline tests mock
+provider transport; PostgreSQL tests use labeled stub geometry for vector storage,
+ranking, constraints, permissions, and atomicity. Those tests do not establish
+semantic retrieval quality.
+
 ## Metric documentation and control SQL
 
 Definitions and limitations are documented in:
@@ -290,7 +402,10 @@ details. Knowledge-index readiness will be added when ingestion is implemented.
 The migration service is an explicit job under the `tools` Compose profile;
 regular API startup never applies migrations. The first migration enables the
 `vector` extension; the second creates analytics tables and a separate knowledge
-schema. Role grants are provisioned after migration. To inspect migrations:
+schema. The third creates knowledge index metadata and vector chunks. Role grants
+are provisioned after migration. Foundation readiness checks migrations/pgvector;
+it does not check embedding account access or index contents. Retrieval itself
+checks compatible index metadata and fails explicitly if missing. To inspect migrations:
 
 ```bash
 uv run --locked alembic heads
@@ -324,6 +439,8 @@ row/byte limits, string escaping, transaction identity/settings, real statement
 and lock timeouts, caller deadlines, and recovery after errors. A
 disposable knowledge probe table is created and removed.
 Run them against the dedicated seeded demo database, not an unrelated database.
+RAG tests use isolated named indexes and remove them after each test; they preserve
+the real default index and make no paid API calls.
 
 Stage 0 was verified on 2026-10-06: 13 offline tests and one PostgreSQL integration
 test passed, along with Ruff lint and formatting checks. The Docker quickstart
@@ -357,11 +474,25 @@ a real statement timeout was also verified through the Docker CLI. Repeated seed
 reported `unchanged`, reference values matched, and live/ready/demo returned
 HTTP 200. Temporary containers, volumes, source copies, and secrets were removed.
 
+Stage 3 implementation checks on 2026-10-07: 142 offline and 66 PostgreSQL
+integration tests passed (208 total), including SDK transport contracts and
+real vector/role/atomicity behavior with labeled stub embeddings. Ruff,
+lockfile validation, and Alembic metadata checks passed. The fresh Docker setup
+with a new volume and temporary secrets passed migrations, three-role
+provisioning, seed/reference verification, ingestion dry-run (25 chunks,
+15942 input bytes), and HTTP 200 live/ready/demo checks. All 208 tests also passed
+against that fresh database. A Docker probe verified stub ingestion/search and
+repeat ingestion without additional embedding calls. Job credential isolation,
+non-root execution, and exclusion of secrets/local plan were checked. Temporary
+containers, volumes, source, secrets, and probe indexes were removed.
+Live OpenAI retrieval has not run: an API key is still required. Stage 3
+acceptance remains pending that explicit paid smoke check.
+
 ## Scope and next steps
 
 This is a local foundation, with no deployed demo yet. The local database owner
 currently serves health/migration paths; validated SQL uses a separate reader.
-There is no public SQL endpoint or LLM workflow. Knowledge documents are
-Markdown only; ingestion, embeddings, retrieval, and paid API calls are not run.
+There is no public SQL endpoint or LLM workflow. Knowledge ingestion and exact
+retrieval are implemented; live verification is pending an embedding API key.
 
-Next: Markdown ingestion, embeddings, and documentation retrieval with sources.
+Next after live stage 3 acceptance: OpenAI Responses API with real tool calls.
