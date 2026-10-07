@@ -86,7 +86,11 @@ local/server secrets. Role provisioning is a separate administrator command for
 a dedicated QueryLens PostgreSQL cluster. It also revokes PUBLIC database
 CREATE/TEMPORARY and public schema CREATE.
 
-Read-only defaults and SELECT grants are only part of SQL safety. Stage 2 will
-add AST validation, function/relation allowlists, server-controlled read-only
-transactions, and result limits. PostgreSQL built-in functions and catalogs are
-not a safe arbitrary-SQL interface solely because table writes are forbidden.
+The database tool combines these grants with AST validation, reviewed
+function/relation/type allowlists, server-controlled read-only transactions,
+statement/lock timeouts, and row/byte limits. Every physical relation is qualified
+to analytics; the tool's search path is pg_catalog. Knowledge and catalog
+relations, arbitrary functions, writes, and locking clauses are rejected. The
+accepted SQL subset is intentionally limited; see README.md for exact budgets
+and deadline limitations. PostgreSQL built-in functions and catalogs are not a
+safe arbitrary-SQL interface solely because table writes are forbidden.

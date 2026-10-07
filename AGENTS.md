@@ -98,6 +98,16 @@ the dedicated, migrated, provisioned, and seeded demo database; metric fixtures
 are rolled back and disposable knowledge probes are removed. Keep the checked-in
 reference values independent of executed SQL when changing the dataset.
 
+Stage 2 adds reviewed schema metadata and the validated SQL tool. Keep its exact
+SQLGlot version pinned; parser upgrades require policy and generated-SQL review.
+Use `scripts.query` for local smoke checks, not a public arbitrary-SQL endpoint.
+The tool must use only AnalyticsSettings, validate all AST scopes before database
+access, and preserve structured failure/truncation metadata. Real PostgreSQL
+tests cover transaction identity, row/byte limits, statement/lock timeouts,
+caller deadlines, and recovery. Do not describe the cooperative tool deadline
+as a hard network wall-clock guarantee or returned-byte limits as database memory
+limits. Global workflow/retry budgets remain stage 5 work.
+
 - Use pytest and Ruff. Run checks relevant to the change and report their results.
 - Keep offline tests and CI deterministic and independent of paid API keys. Use
   stub providers for offline workflow tests; keep live smoke tests/evaluation

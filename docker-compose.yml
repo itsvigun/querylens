@@ -76,5 +76,19 @@ services:
       POSTGRES_DB: ${POSTGRES_DB:-querylens}
     command: ["python", "-m", "scripts.verify_data"]
 
+  query:
+    <<: *app
+    profiles: ["tools"]
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-querylens}
+      ANALYTICS_READONLY_PASSWORD: ${ANALYTICS_READONLY_PASSWORD:-}
+      SQL_MAX_ROWS: ${SQL_MAX_ROWS:-1000}
+      SQL_MAX_RESULT_BYTES: ${SQL_MAX_RESULT_BYTES:-65536}
+      SQL_STATEMENT_TIMEOUT_MS: ${SQL_STATEMENT_TIMEOUT_MS:-5000}
+      SQL_TOOL_TIMEOUT_MS: ${SQL_TOOL_TIMEOUT_MS:-10000}
+    command: ["python", "-m", "scripts.query"]
+
 volumes:
   postgres_data:

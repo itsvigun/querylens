@@ -3,9 +3,10 @@
 QueryLens is being built to answer business questions using documentation
 retrieval, LLM tool calling, and read-only SQL over synthetic PostgreSQL data.
 
-**Current status: stage 1 — synthetic analytics data and metric documentation.**
+**Current status: stage 2 — validated, bounded read-only database tools.**
 The API foundation, analytics schema, dedicated database roles, reproducible seed,
-and control SQL are implemented. Retrieval, LLM integration, and a demo UI come
+control SQL, reviewed schema metadata, and SQL execution tool are implemented.
+Retrieval, LLM integration, and a demo UI come
 next. No LLM API key is required for this stage.
 
 ## Stack
@@ -14,6 +15,7 @@ next. No LLM API key is required for this stage.
 - FastAPI and Uvicorn.
 - SQLAlchemy 2.0 and psycopg2 for PostgreSQL connections.
 - Alembic for explicit database migrations.
+- SQLGlot 30.21.0 for a fail-closed PostgreSQL AST policy.
 - PostgreSQL 17 with pgvector 0.8.6, running in Docker Compose.
 - pytest, HTTPX2, and Ruff for local checks.
 
@@ -119,12 +121,15 @@ dotenv keys are ignored so Compose-only settings can share the same file.
 | `API_PORT` | `8000` | Compose host API port |
 | `DB_CONNECT_TIMEOUT_SECONDS` | `3` | Connection and pool acquisition timeout |
 | `DB_STATEMENT_TIMEOUT_MS` | `5000` | PostgreSQL per-statement timeout |
-| `ANALYTICS_READONLY_PASSWORD` | Required for provisioning/verification | Dedicated reader password; never falls back to owner credentials |
+| `ANALYTICS_READONLY_PASSWORD` | Required for provisioning/verification/SQL tool | Dedicated reader password; never falls back to owner credentials |
 | `KNOWLEDGE_WRITER_PASSWORD` | Required for provisioning | Dedicated ingestion writer password |
+| `SQL_MAX_ROWS` | `1000` | SQL response row limit, configurable from 1 to 1000 |
+| `SQL_MAX_RESULT_BYTES` | `65536` | Entire compact UTF-8 JSON response budget, from 1024 to 1048576 bytes |
+| `SQL_STATEMENT_TIMEOUT_MS` | `5000` | SQL statement/fetch timeout, from 10 to 10000 ms |
+| `SQL_TOOL_TIMEOUT_MS` | `10000` | Cooperative SQL tool budget, from 100 to 30000 ms |
 
-Database sessions use UTC and a one-second lock timeout. These limits support
-health checks; the future SQL execution tool will also enforce its own permissions,
-result limits, and request deadline.
+Database sessions use UTC and a one-second lock timeout. The SQL tool applies its
+own limits and can accept a shorter absolute monotonic deadline from server code.
 
 ## Synthetic dataset and reference date
 
@@ -180,8 +185,71 @@ when created by the same migration owner.
 
 Role passwords are not embedded in migrations or sent as plaintext SQL statements;
 provisioning uses client-generated SCRAM verifiers. Dedicated passwords are passed
-only to the jobs that need them. The API has no model-generated SQL endpoint yet;
-stage 2 will enforce validation and execution limits with dedicated reader settings.
+only to the jobs that need them. The `query` job receives only reader credentials;
+owner and ingestion credentials are absent from its environment. The API has no
+model-generated SQL endpoint yet.
+
+## Validated database tools
+
+`get_database_schema()` exposes reviewed SQLAlchemy metadata: four analytics
+tables, PostgreSQL types, keys, constraints, and the demo time anchor. It does not
+discover arbitrary database catalogs or confirm that migrations/data are loaded.
+Use `alembic check` to detect schema drift.
+
+After migrations, role provisioning, and seed, inspect metadata and run SQL:
+
+```bash
+uv run --locked python -m scripts.query --schema
+printf '%s\n' "SELECT COUNT(*) AS users FROM analytics.users" \
+  | uv run --locked python -m scripts.query
+
+# The Docker job uses the same tool. Disable TTY allocation for stdin.
+docker compose run --rm query python -m scripts.query --schema
+printf '%s\n' "SELECT COUNT(*) AS users FROM analytics.users" \
+  | docker compose run --rm -T query
+```
+
+The count query returns an actual database value of 10000 for synthetic-v1.
+`scripts.query` prints compact JSON and exits with code 1 for rejection/error.
+These are backend tools and a local CLI; LLM dispatch will be added in stage 4.
+
+The policy validates every AST node and lexical relation scope. It accepts one
+SELECT, nonrecursive read CTEs, nested/correlated queries, joins, aggregates,
+set operations, and a limited set of window/date/string functions. Physical
+tables are qualified to `analytics`. Writes (including unused write CTEs), DDL,
+COPY, SELECT INTO, locking, extra statements, recursive CTEs, knowledge/catalog
+relations, qualified or unapproved functions, and unapproved casts are rejected.
+Comments are removed. Input is limited to 16 KiB, 600 AST nodes, and depth 40.
+Exact reviewed node/function/type allowlists live in
+[sql_validation.py](app/tools/sql_validation.py). SQLGlot is pinned because parser
+acceptance alone is not a security policy; upgrades require policy review/tests.
+Valid PostgreSQL outside this deliberately small subset may be rejected.
+
+`DatabaseTools.execute_sql()` creates a server-controlled read-only transaction
+using only `querylens_analytics_ro`, verifies that identity and read-only state,
+and sets `search_path=pg_catalog`, UTC, and standard string escaping. Only the
+SQL regenerated from the validated AST is executed. A top-level AST LIMIT caps
+fetching to the row limit plus one sentinel; smaller user limits and ordering are
+preserved. A named cursor fetches batches of 16, with at most 64 result columns.
+
+Results include status, the actual bounded SQL, column names/types, row arrays,
+row count, elapsed milliseconds, and explicit truncation reasons (`row_limit`
+or `byte_limit`). Byte limits include SQL and metadata; only whole rows are kept.
+A response whose SQL/metadata cannot fit fails with `result_limit`. An oversized
+first value yields zero rows with explicit byte truncation. Duplicate column names
+are preserved because rows are arrays. Decimal money and integers beyond
+JavaScript's exact range are strings; dates/timestamps use ISO format. Errors
+return safe categories/messages and discard partial rows and database details.
+
+Statement timeouts are shortened to the remaining tool/caller budget before
+executing and before each fetch. Expired budgets fail explicitly; failures roll
+back and the reader pool supports subsequent queries. This is a cooperative
+deadline, not a hard network wall-clock guarantee: libpq connection timeout has
+second granularity, and a stalled network operation can outlast the budget.
+Result limits bound returned JSON, not PostgreSQL intermediate work or the size
+of a single driver fetch. Expensive queries still require runtime timeouts. The
+global workflow deadline, retry/tool budgets, and public concurrency limits are
+planned in later stages.
 
 ## Metric documentation and control SQL
 
@@ -240,7 +308,8 @@ uv run --locked pytest -m 'not integration'
 ```
 
 Offline tests cover settings, credential separation, health behavior, deterministic
-seed integrity/reference values, and static demo metadata. Readiness success cases
+seed integrity/reference values, static demo metadata, AST policy, reviewed schema,
+and safe tool failures before database access. Readiness success cases
 use a stub; verify database behavior after migrations, role provisioning, and seed:
 
 ```bash
@@ -250,7 +319,10 @@ QUERYLENS_INTEGRATION=1 uv run --locked pytest -m integration
 Integration tests use the database and role passwords in `.env`. They check real
 login permissions, timeout, role isolation, constraints, seed repeatability,
 reference SQL, and date-boundary/denominator behavior. Temporary metric fixtures
-are rolled back; a disposable knowledge probe table is created and removed.
+are rolled back. SQL tool checks exercise control query values, nested CTEs,
+row/byte limits, string escaping, transaction identity/settings, real statement
+and lock timeouts, caller deadlines, and recovery after errors. A
+disposable knowledge probe table is created and removed.
 Run them against the dedicated seeded demo database, not an unrelated database.
 
 Stage 0 was verified on 2026-10-06: 13 offline tests and one PostgreSQL integration
@@ -274,13 +346,22 @@ explicit `--replace` restored the reference fingerprint, and a downgrade/upgrade
 round-trip followed by provisioning/seed/verification succeeded. Temporary
 verification containers and volumes were removed.
 
+Stage 2 was verified on 2026-10-07: 114 offline and 55 PostgreSQL integration
+tests passed (169 total), including the complete SQL tool path. Ruff lint/format,
+lockfile validation, and Alembic's metadata check passed. Existing dependency
+versions were preserved; only pinned SQLGlot was added. The Docker quickstart
+passed again from a fresh source copy and new volume with new temporary secrets;
+all 169 tests passed against that database. Docker CLI checks verified CTE
+execution, rejected writes, row truncation, and reader credential isolation;
+a real statement timeout was also verified through the Docker CLI. Repeated seed
+reported `unchanged`, reference values matched, and live/ready/demo returned
+HTTP 200. Temporary containers, volumes, source copies, and secrets were removed.
+
 ## Scope and next steps
 
 This is a local foundation, with no deployed demo yet. The local database owner
-currently serves the health and migration paths. Role permissions are implemented,
-but arbitrary generated SQL is not yet a supported interface: AST validation,
-function/relation allowlists, server-controlled read-only transactions, row/byte
-limits, and structured tool results come in stage 2. Knowledge documents are
+currently serves health/migration paths; validated SQL uses a separate reader.
+There is no public SQL endpoint or LLM workflow. Knowledge documents are
 Markdown only; ingestion, embeddings, retrieval, and paid API calls are not run.
 
-Next: schema metadata and validated, bounded read-only database tools.
+Next: Markdown ingestion, embeddings, and documentation retrieval with sources.

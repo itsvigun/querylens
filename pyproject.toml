@@ -10,6 +10,7 @@ dependencies = [
     "psycopg2-binary>=2.9.11,<3",
     "pydantic-settings>=2.15,<3",
     "sqlalchemy>=2.0.46,<2.1",
+    "sqlglot==30.21.0",
     "uvicorn>=0.54,<0.55",
 ]
 

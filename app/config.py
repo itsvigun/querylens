@@ -48,3 +48,12 @@ class AnalyticsSettings(Settings):
     postgres_password: SecretStr = Field(
         min_length=16, validation_alias="ANALYTICS_READONLY_PASSWORD"
     )
+
+
+class SQLToolLimits(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    sql_max_rows: int = Field(default=1000, ge=1, le=1000)
+    sql_max_result_bytes: int = Field(default=65536, ge=1024, le=1048576)
+    sql_statement_timeout_ms: int = Field(default=5000, ge=10, le=10000)
+    sql_tool_timeout_ms: int = Field(default=10000, ge=100, le=30000)
