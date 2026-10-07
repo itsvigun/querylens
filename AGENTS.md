@@ -7,9 +7,11 @@ answer business questions using documentation retrieval, LLM tool calling, and
 read-only SQL over synthetic PostgreSQL data. The author should be able to explain
 the implementation and its limits in an interview.
 
-Read `QUERYLENS_PLAN.md` at the start of each session, especially its checklist and
-handoff, then inspect the current files. The plan describes intended capabilities;
-the implementation and checks establish what actually works.
+If available, read the local, Git-ignored `QUERYLENS_PLAN.md` at the start of each
+session, especially its checklist and handoff, then inspect the current files.
+The plan describes intended capabilities; the implementation and checks establish
+what actually works. The plan is kept only in the author's local workspace and
+is not included in repository clones.
 
 ## Working style
 
