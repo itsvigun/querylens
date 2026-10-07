@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy import URL
@@ -35,3 +37,14 @@ class Settings(BaseSettings):
                 "-c lock_timeout=1000 -c timezone=UTC"
             ),
         }
+
+
+class AnalyticsSettings(Settings):
+    """Dedicated reader credentials; never fall back to the owner password."""
+
+    postgres_user: Literal["querylens_analytics_ro"] = Field(
+        default="querylens_analytics_ro", validation_alias="ANALYTICS_READONLY_USER"
+    )
+    postgres_password: SecretStr = Field(
+        min_length=16, validation_alias="ANALYTICS_READONLY_PASSWORD"
+    )

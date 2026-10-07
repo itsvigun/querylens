@@ -1,0 +1,139 @@
+{
+  "dataset_version": "synthetic-v1",
+  "reference_date": "2026-10-01T00:00:00+00:00",
+  "sha256": "b690beea51561f0b8de4a6790aa233d520562323e10e62a3e5ea74c35682743d",
+  "counts": {
+    "users": 10000,
+    "orders": 20000,
+    "events": 80000,
+    "subscriptions": 3000
+  },
+  "periods": {
+    "july": {
+      "revenue": "438832.90",
+      "completed_orders": 5600,
+      "paying_users": 2271,
+      "active_users": 3610,
+      "arpu": "121.56036011",
+      "arppu": "193.23333333"
+    },
+    "august": {
+      "revenue": "461125.04",
+      "completed_orders": 6000,
+      "paying_users": 3699,
+      "active_users": 6678,
+      "arpu": "69.05136867",
+      "arppu": "124.66208164"
+    },
+    "september": {
+      "revenue": "336080.07",
+      "completed_orders": 4400,
+      "paying_users": 3396,
+      "active_users": 9501,
+      "arpu": "35.37312599",
+      "arppu": "98.96350707"
+    },
+    "last_week": {
+      "revenue": "78995.84",
+      "completed_orders": 1051,
+      "paying_users": 992,
+      "active_users": 5545,
+      "arpu": "14.24631921",
+      "arppu": "79.63290323"
+    },
+    "empty_june": {
+      "revenue": "0.00",
+      "completed_orders": 0,
+      "paying_users": 0,
+      "active_users": 0,
+      "arpu": null,
+      "arppu": null
+    }
+  },
+  "country_revenue": {
+    "august": [
+      {
+        "country": "DE",
+        "completed_orders": 2000,
+        "revenue": "153041.95"
+      },
+      {
+        "country": "ES",
+        "completed_orders": 1200,
+        "revenue": "91958.63"
+      },
+      {
+        "country": "FR",
+        "completed_orders": 1360,
+        "revenue": "105573.23"
+      },
+      {
+        "country": "PL",
+        "completed_orders": 1440,
+        "revenue": "110551.23"
+      }
+    ],
+    "september": [
+      {
+        "country": "DE",
+        "completed_orders": 560,
+        "revenue": "42992.93"
+      },
+      {
+        "country": "ES",
+        "completed_orders": 1120,
+        "revenue": "84388.87"
+      },
+      {
+        "country": "FR",
+        "completed_orders": 1280,
+        "revenue": "100019.61"
+      },
+      {
+        "country": "PL",
+        "completed_orders": 1440,
+        "revenue": "108678.66"
+      }
+    ]
+  },
+  "september_churn": [
+    {
+      "plan": "basic",
+      "subscriptions_at_start": 950,
+      "cancellations": 190,
+      "churn_rate": "0.20000000"
+    },
+    {
+      "plan": "enterprise",
+      "subscriptions_at_start": 950,
+      "cancellations": 38,
+      "churn_rate": "0.04000000"
+    },
+    {
+      "plan": "pro",
+      "subscriptions_at_start": 950,
+      "cancellations": 95,
+      "churn_rate": "0.10000000"
+    }
+  ],
+  "conversion": {
+    "august": {
+      "cohort_users": 3238,
+      "converted_users": 1735,
+      "fully_observed": true,
+      "conversion_rate": "0.53582458"
+    },
+    "september": {
+      "cohort_users": 3152,
+      "converted_users": 0,
+      "fully_observed": false,
+      "conversion_rate": null
+    },
+    "empty_june": {
+      "cohort_users": 0,
+      "converted_users": 0,
+      "fully_observed": null,
+      "conversion_rate": null
+    }
+  }
+}

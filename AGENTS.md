@@ -85,11 +85,18 @@ is not included in repository clones.
 
 ## Verification and commands
 
-The stage 0 skeleton uses uv, Python 3.14.8, and a development dependency group for
+The current foundation uses uv, Python 3.14.8, and a development dependency group for
 pytest, HTTPX2, and Ruff. See the plan's handoff for checks actually completed.
 Establish and document exact setup, run, migration, lint, test, and evaluation
 commands in `README.md` as the relevant stages are implemented. Do not present
 planned commands as commands that have already passed.
+
+Stage 1 includes analytics Core metadata, migrations, explicit role provisioning,
+deterministic seed generation, and control SQL verification. Use the fixed
+synthetic-v1 reference date (2026-10-01 UTC). Database integration tests require
+the dedicated, migrated, provisioned, and seeded demo database; metric fixtures
+are rolled back and disposable knowledge probes are removed. Keep the checked-in
+reference values independent of executed SQL when changing the dataset.
 
 - Use pytest and Ruff. Run checks relevant to the change and report their results.
 - Keep offline tests and CI deterministic and independent of paid API keys. Use
