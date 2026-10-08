@@ -5,10 +5,13 @@ from threading import BoundedSemaphore
 from fastapi import FastAPI
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.chat import router as chat_router
 from app.api.demo import router as demo_router
 from app.api.health import router as health_router
+from app.api.ui import UI_DIRECTORY
+from app.api.ui import router as ui_router
 from app.config import Settings
 from app.db.connection import create_database_engine, migration_heads
 
@@ -35,6 +38,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(health_router)
     application.include_router(demo_router)
     application.include_router(chat_router)
+    application.include_router(ui_router)
+    application.mount("/assets", StaticFiles(directory=UI_DIRECTORY / "assets"), name="assets")
 
     @application.exception_handler(RequestValidationError)
     async def invalid_request(request, exc):

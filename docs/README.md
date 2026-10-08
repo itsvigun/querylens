@@ -15,6 +15,7 @@ section of the verification record. All commands run from the repository root.
 | [Validated SQL tool](sql-tool.md) | CLI, AST policy, read-only execution, limits and result format |
 | [Ingestion and retrieval](retrieval.md) | Chunking, embeddings, indexing/reindexing, search and paid retrieval check |
 | [Chat and LangGraph](chat.md) | Responses contract, CLI/API, grounding, graph transitions and budgets |
+| [Web UI](ui.md) | Browser interaction, answer evidence, errors, rendering safety and UI checks |
 | [Testing and acceptance](testing.md) | Offline, PostgreSQL, drift checks and explicit live checks |
 | [Verification record](verification.md) | Dated local, Docker and live evidence, observed usage and limitations |
 

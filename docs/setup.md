@@ -33,7 +33,8 @@ docker compose run --rm verify-data
 docker compose up --build -d --wait api
 ```
 
-Open [interactive API documentation](http://127.0.0.1:8000/docs) or check health:
+Open the [web UI](http://127.0.0.1:8000/) or
+[interactive API documentation](http://127.0.0.1:8000/docs), or check health:
 
 ```bash
 curl --fail http://127.0.0.1:8000/health/live
@@ -124,6 +125,7 @@ new environment with:
 docker compose up -d --wait api
 ```
 
-Open `/docs` to call `POST /api/chat`, or use the [chat CLI](chat.md).
+Open `/` to ask through the [web UI](ui.md), `/docs` to call `POST /api/chat`,
+or use the [chat CLI](chat.md).
 Health checks do not call OpenAI. Migrations, role provisioning, seed and
 knowledge ingestion are explicit jobs, not startup tasks.

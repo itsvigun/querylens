@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Explore synthetic business data with answers backed by SQL and sources.">
+  <title>QueryLens · Analytics workspace</title>
+  <link rel="icon" href="/assets/icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/assets/app.css">
+  <script src="/assets/app.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#question">Skip to question</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="QueryLens home"><span class="brand-mark" aria-hidden="true">Q</span>QueryLens</a>
+    <nav aria-label="Main navigation"><span class="demo-badge">Synthetic demo</span><a href="/docs">API docs <span aria-hidden="true">↗</span></a></nav>
+  </header>
+  <main>
+    <section class="intro" aria-labelledby="page-title">
+      <p class="eyebrow">ANALYTICS WORKSPACE</p>
+      <h1 id="page-title">Your data.<br><span>A clearer answer.</span></h1>
+      <p class="lede">Ask a business question. Explore the answer, the SQL behind it,<br class="desktop-break"> and the definitions that give it meaning.</p>
+      <div class="context-bar" aria-label="Demo context">
+        <span class="context-label">DEMO CONTEXT</span>
+        <span id="reference-date">Loading reference date…</span>
+        <span id="dataset-label"></span>
+        <button id="retry-context" class="text-button" type="button" hidden>Reload context</button>
+      </div>
+    </section>
+    <div class="workspace">
+      <section class="composer panel" aria-labelledby="ask-heading">
+        <div class="section-heading"><span class="step-number">01</span><h2 id="ask-heading">Ask your data</h2></div>
+        <form id="question-form">
+          <label for="question">Your question</label>
+          <textarea id="question" name="question" rows="5" maxlength="2000" required aria-describedby="question-help input-error byte-count" placeholder="What was revenue last month, in EUR?"></textarea>
+          <div class="input-meta"><span id="question-help">Include a metric and time period.</span><span id="byte-count">0 / 2000 bytes</span></div>
+          <p id="input-error" class="input-error" role="alert" hidden></p>
+          <button id="submit-question" class="primary-button" type="submit" disabled>Ask QueryLens <span aria-hidden="true">↗</span></button>
+        </form>
+        <div class="examples">
+          <p class="eyebrow">A FEW PLACES TO START</p>
+          <button class="example" type="button" data-question="What was completed-order revenue in September, in EUR?"><span>Revenue last month</span><span aria-hidden="true">↗</span></button>
+          <button class="example" type="button" data-question="How many active users were there in September?"><span>Active users in September</span><span aria-hidden="true">↗</span></button>
+          <button class="example" type="button" data-question="What was ARPU in September, in EUR, using active users?"><span>Revenue per active user</span><span aria-hidden="true">↗</span></button>
+        </div>
+        <p id="period-note" class="fine-print">Relative periods use the demo reference date.</p>
+        <p class="fine-print">Each question is independent. To clarify, edit your full question and ask again.</p>
+      </section>
+      <section class="answer-panel panel" aria-labelledby="answer-heading" aria-busy="false">
+        <div class="section-heading"><span class="step-number">02</span><h2 id="answer-heading" tabindex="-1">Explore the answer</h2><span id="answer-badge" class="status-badge">Ready</span></div>
+        <p id="request-status" class="sr-only" role="status" aria-live="polite"></p>
+        <div id="answer-content">
+          <div class="empty-state"><div class="empty-symbol" aria-hidden="true"><i></i><i></i><i></i></div><h3>Start with a question</h3><p>Your answer will appear here, with<br>the results and sources to inspect.</p><span class="empty-caption">DEFINITIONS · READ-ONLY SQL · CITED RESULTS</span></div>
+        </div>
+      </section>
+    </div>
+    <footer><span>Built to make answers inspectable.</span><span>Synthetic data · Observed contributions do not establish causality.</span></footer>
+  </main>
+  <noscript><p class="noscript">JavaScript is required to ask questions. You can also use the QueryLens command-line tools.</p></noscript>
+</body>
+</html>

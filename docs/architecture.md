@@ -9,19 +9,19 @@ include executed SQL/results, definition sources, actual usage and local trace.
 
 ## Current scope
 
-Stages 0–5 are implemented: API foundation, deterministic analytics, dedicated
+Stages 0–6 are implemented: API foundation, deterministic analytics, dedicated
 roles, AST-validated SQL, versioned ingestion/retrieval, OpenAI Responses tool
-calling and bounded LangGraph orchestration. Stage 5 local/offline/PostgreSQL and
-live regression evidence is recorded in [verification.md](verification.md#stage-5).
-The next milestone is a minimal UI served by FastAPI, showing questions, answers,
-SQL/results, sources, errors, the demo reference date and the synthetic-data label.
-Evaluation/CI/observability and deployment follow the UI. No demo is deployed yet.
+calling, bounded LangGraph orchestration and a [web UI](ui.md) served by FastAPI.
+The browser displays questions, answers, SQL/results, sources, errors, the demo
+reference date and the synthetic label. Stage 6 verification is recorded in
+[verification.md](verification.md#stage-6). Evaluation/CI/observability is next,
+followed by deployment. No demo is deployed yet.
 
 ## Request and data flow
 
 ```mermaid
 flowchart TD
-    Question["Question via CLI or POST /api/chat"] --> Graph["Per-question LangGraph state"]
+    Question["Question via web UI, CLI or POST /api/chat"] --> Graph["Per-question LangGraph state"]
     Graph --> Model["OpenAI Responses"]
     Model --> Dispatch["Validated server-side tool dispatch"]
     Dispatch --> Schema["Reviewed analytics schema"]
@@ -68,6 +68,7 @@ and deployment controls belong to later milestones.
 | Path | Responsibility |
 |---|---|
 | [`app/main.py`](../app/main.py), [`app/api/`](../app/api) | FastAPI lifecycle, health/demo/chat routes |
+| [`app/static/`](../app/static) | Browser HTML, CSS, JavaScript and local icon; served by the UI route/assets mount |
 | [`app/config.py`](../app/config.py) | Validated settings and separate credentials/provider budgets |
 | [`app/db/`](../app/db) | Analytics metadata and foundation connections |
 | [`app/tools/`](../app/tools) | Reviewed schema, AST policy, bounded SQL execution, validated dispatch |

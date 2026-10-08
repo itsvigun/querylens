@@ -3,7 +3,7 @@
 [Documentation index](README.md)
 
 This is dated evidence, not a list of checks automatically run on every change.
-Start with [stage 5](#stage-5) for the latest implementation evidence.
+Start with [stage 6](#stage-6) for the latest implementation evidence.
 For current commands, use [testing.md](testing.md).
 Offline provider transports and stub vectors are labeled separately from live API runs.
 
@@ -155,5 +155,54 @@ All local Markdown links and anchors were checked. All 21 original fenced
 command/example blocks were preserved; 26 shell blocks passed `bash -n`.
 A secret scan of the 12 documentation/instruction files found no local passwords
 or API keys. `git diff --check` passed. This was a documentation-only change;
-application tests, Docker setup and paid API checks were not rerun. The stage 5
-checks above remain the latest implementation evidence.
+application tests, Docker setup and paid API checks were not rerun for that
+documentation change.
+
+## Stage 6
+
+Checks on 2026-10-08 passed: 205 offline, 71 PostgreSQL and 18 Chromium browser
+tests (294 total), Ruff lint/format, JavaScript syntax, lockfile validation and
+Alembic metadata checks. The browser tests use a real temporary FastAPI HTTP
+server with explicitly labeled offline chat answers; they never invoke providers.
+They verify exact Decimal/large-integer strings, NULL, empty/truncated results,
+SQL and source disclosures, literal rendering of hostile HTML, clarification,
+unsupported/missing-context responses, UTF-8 limits, duplicate submission, busy
+HTTP responses, stale-result removal, network/malformed-response errors, browser
+timeout and metadata reload. Desktop and 390px mobile screenshots were inspected,
+and a wide result table stayed scrollable without overflowing the page.
+
+A fresh source copy/new Docker volume with temporary passwords passed migration,
+role provisioning, deterministic seed/control verification and HTTP checks for
+health/demo/OpenAPI, `/` and all UI assets. Missing-key chat returned its safe
+failure without a provider request. Five existing PostgreSQL workflow scenarios
+also passed against the fresh database. Reader credential isolation, non-root
+execution, secret/plan exclusion and absence of Playwright in the production image
+were checked. Temporary containers, volumes, source and secrets were removed.
+The main API was rebuilt with the UI and left healthy.
+
+Playwright 1.63.0 is pinned in an optional `browser` dependency group. Chromium
+153.0.8010.12 ran on the local Python 3.14.8 setup. Only Playwright and pyee were
+added to the lockfile; all existing versions were preserved. Runtime dependencies
+were unchanged. The implementation uses the documented
+[FastAPI static mount](https://fastapi.tiangolo.com/tutorial/static-files/) and
+[Starlette file response](https://starlette.dev/responses/); browser setup follows
+the [Playwright library](https://playwright.dev/python/docs/library).
+
+### Live browser acceptance
+
+One real browser submission through the page, FastAPI, OpenAI and PostgreSQL
+returned `answered` with the expected fact `336080.07` EUR, executed SQL and the
+Revenue source in `knowledge/metrics.md`. SQL/source disclosures and the answer
+were inspected at desktop and mobile widths. No browser script errors occurred.
+This establishes one live revenue scenario; failure-state browser tests used
+offline answers and do not establish broader semantic accuracy.
+
+The temporary live-check server capped Responses input at 36000 bytes and output
+at 1800 tokens to fit the remaining approved $0.05 budget. These test overrides
+did not change `.env` or the normal API budgets. Actual usage was three Responses
+requests, 6497 input/288 output tokens and 33892 attempted input bytes, plus one
+query embedding using 16 tokens (119 bytes). The workflow made three successful
+tool calls, one SQL attempt and no repairs; observed duration was 7804 ms.
+At the previously recorded dated prices, uncached estimated cost is $0.00616907;
+combined known usage for the recorded runs is $0.01899533, excluding the author's
+initial ingestion and any cached-input discount. This is an estimate, not an invoice.

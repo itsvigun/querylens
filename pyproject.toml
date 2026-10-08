@@ -19,6 +19,9 @@ dependencies = [
 ]
 
 [dependency-groups]
+browser = [
+    "playwright==1.63.0",
+]
 dev = [
     "httpx2>=2.13,<3",
     "pytest>=9.1,<10",
@@ -32,7 +35,10 @@ package = false
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra --strict-markers"
-markers = ["integration: requires a migrated PostgreSQL database with pgvector"]
+markers = [
+    "integration: requires a migrated PostgreSQL database with pgvector",
+    "browser: requires the browser dependency group and installed Chromium",
+]
 
 [tool.ruff]
 target-version = "py314"
