@@ -39,7 +39,7 @@ class FactReference(StrictModel):
 
 
 class FinalAnswer(StrictModel):
-    status: Literal["answered", "clarification", "insufficient_context"]
+    status: Literal["answered", "clarification", "insufficient_context", "unsupported"]
     explanation: str = Field(min_length=1, max_length=3000)
     facts: list[FactReference] = Field(max_length=30)
     source_ids: list[str] = Field(max_length=24)

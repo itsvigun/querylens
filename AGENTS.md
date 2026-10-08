@@ -13,6 +13,13 @@ The plan describes intended capabilities; the implementation and checks establis
 what actually works. The plan is kept only in the author's local workspace and
 is not included in repository clones.
 
+Read `docs/README.md` and `docs/architecture.md` for shared development context,
+then the relevant topic guide and its source/tests before changing behavior.
+Use `docs/setup.md` and `docs/testing.md` for exact commands, and the latest
+section of `docs/verification.md` for checks actually completed. The guides
+provide context in clones without publishing the local plan. Keep contributor
+documentation in `docs/`; `knowledge/` is the ingested business corpus.
+
 ## Working style
 
 - Discuss progress and explain important decisions in Ukrainian. Write code,
@@ -86,10 +93,13 @@ is not included in repository clones.
 ## Verification and commands
 
 The current foundation uses uv, Python 3.14.8, and a development dependency group for
-pytest, HTTPX2, and Ruff. See the plan's handoff for checks actually completed.
+pytest, HTTPX2, and Ruff. See `docs/verification.md` and the local plan's handoff
+for checks actually completed.
 Establish and document exact setup, run, migration, lint, test, and evaluation
-commands in `README.md` as the relevant stages are implemented. Do not present
-planned commands as commands that have already passed.
+commands in the relevant `docs/` guide as stages are implemented. Keep `README.md`
+limited to project purpose, current status, quickstart and documentation links.
+Update guides when behavior changes and append actual verification evidence;
+do not present planned commands as commands that have already passed.
 
 Stage 1 includes analytics Core metadata, migrations, explicit role provisioning,
 deterministic seed generation, and control SQL verification. Use the fixed
@@ -125,9 +135,19 @@ Keep LLM settings independent of embeddings. `scripts.ask` and `/api/chat` use
 only dedicated readers in tools; startup/health must not invoke providers.
 Numeric facts reference actual SQL cells and source IDs; validate them server-side.
 This proves provenance, not semantic correctness of chosen queries or prose.
-Track actual usage, bounded failures, deadlines and attempts. Keep LangGraph for
-stage 5. Run `scripts.verify_tool_calling --live` separately with an explicit
+Track actual usage, bounded failures, deadlines and attempts. Run
+`scripts.verify_tool_calling --live` separately with an explicit
 budget/key before marking stage 4 live acceptance complete.
+
+Stage 5 uses `app/llm/workflow.py` with a sequential LangGraph StateGraph, fresh
+state per question, conditional transitions, separate SQL repair and total-attempt
+budgets, a request deadline and a graph step guard. Keep the existing Responses
+adapter and server-side dispatch/SQL controls. Clients and secrets stay outside
+state; do not add checkpoint persistence or external tracing. LangSmith tracing
+is explicitly disabled even if shell variables enable it. Return sanitized node
+transitions and counters alongside tool trace and executed results. Exercise
+correct queries, clarification, unsupported questions, SQL repair, exhausted
+budgets and deadlines offline; use real PostgreSQL for SQL error/recovery paths.
 
 - Use pytest and Ruff. Run checks relevant to the change and report their results.
 - Keep offline tests and CI deterministic and independent of paid API keys. Use
@@ -138,5 +158,5 @@ budget/key before marking stage 4 live acceptance complete.
 - Evaluate result values rather than SQL string equality. Cover metric definitions,
   date boundaries, empty results, undefined denominators, dangerous SQL, prompt
   injection, recovery, exhausted budgets, and answer/result consistency.
-- Verify a fresh setup using the README before marking local setup complete, and
+- Verify a fresh setup using `docs/setup.md` before marking local setup complete, and
   run live deployment smoke checks before marking deployment complete.
