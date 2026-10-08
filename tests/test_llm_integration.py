@@ -124,6 +124,9 @@ def test_complete_responses_dispatch_rag_sql_recovery_and_grounding(dispatcher, 
     try:
         result = run_session("Revenue for September?", provider, dispatcher, llm_settings())
         assert result["status"] == "answered", result
+        assert result["workflow"]["engine"] == "langgraph"
+        assert result["workflow"]["sql_repairs"] == int(first_sql is not None)
+        assert result["workflow_trace"][-1]["node"] == "finish"
         assert result["facts"][0]["value"] == "336080.07"
         assert result["sources"][0]["source_id"] == source_id
         assert len(result["queries"]) == (2 if first_sql else 1)
@@ -133,5 +136,41 @@ def test_complete_responses_dispatch_rag_sql_recovery_and_grounding(dispatcher, 
         # The final facts exactly preserve executed Decimal money, not a model-supplied value.
         assert result["facts"][0]["value"] == result["queries"][-1]["rows"][0][0]
         assert all("private" not in encode(body) for body in bodies)
+    finally:
+        provider.close()
+
+
+def test_real_postgres_errors_exhaust_graph_repair_budget(dispatcher):
+    attempts = 0
+
+    def handler(request):
+        nonlocal attempts
+        body = json.loads(request.content)
+        outputs = [item for item in body["input"] if item.get("type") == "function_call_output"]
+        if not outputs:
+            calls = [
+                function_call("get_database_schema", {}, "schema"),
+                function_call("search_documentation", {"query": "Revenue"}, "docs"),
+            ]
+        else:
+            attempts += 1
+            calls = [
+                function_call(
+                    "execute_sql",
+                    {"query": "SELECT missing_column FROM analytics.orders"},
+                    f"sql_{attempts}",
+                )
+            ]
+        return httpx2.Response(200, json=response_payload(output=calls))
+
+    provider = make_provider(handler)
+    try:
+        result = run_session("Revenue?", provider, dispatcher, llm_settings())
+        assert result["error"]["category"] == "sql_retry_budget_exhausted"
+        assert attempts == 3 and result["usage"]["requests"] == 4
+        assert result["workflow"]["sql_repairs"] == 2
+        assert all(q["error"]["category"] == "unknown_column" for q in result["queries"])
+        # A new read-only transaction still works after all three failed statements.
+        assert dispatcher.database.execute_sql(REVENUE_SQL).status == "ok"
     finally:
         provider.close()

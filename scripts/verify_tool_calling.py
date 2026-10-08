@@ -22,6 +22,7 @@ def main():
     values = [fact["value"] for fact in result.get("facts", [])]
     verified = (
         result["status"] == "answered"
+        and result.get("workflow", {}).get("engine") == "langgraph"
         and tools == {"get_database_schema", "search_documentation", "execute_sql"}
         and "336080.07" in values
         and any(

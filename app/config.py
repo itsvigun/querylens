@@ -109,5 +109,6 @@ class LLMSettings(BaseSettings):
     llm_max_calls: int = Field(default=6, ge=1, le=6)
     llm_max_tool_calls: int = Field(default=8, ge=1, le=8)
     llm_max_sql_calls: int = Field(default=3, ge=1, le=3)
+    llm_max_sql_repairs: int = Field(default=2, ge=0, le=2)
     llm_max_input_bytes: int = Field(default=128000, ge=1000, le=128000)
     llm_max_output_tokens: int = Field(default=4000, ge=256, le=4000)
