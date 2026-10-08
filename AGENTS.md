@@ -159,6 +159,20 @@ must show the synthetic label and actual demo reference date. Use the optional
 `browser` group and `QUERYLENS_BROWSER=1` for Chromium tests with labeled offline
 answers; ordinary tests remain independent of browser installs and paid keys.
 
+Stage 7 uses twenty versioned synthetic questions in `evals/cases.json` and
+`scripts.evaluate`. Keep independent expected values, Decimal result comparisons,
+NULL/boolean distinctions, complete fact-cell coverage and source path/heading
+checks. Label scripted providers and gold-heading vectors explicitly: they do not
+establish semantic AI quality. The offline evaluator uses a disposable knowledge
+index and preserves existing indexes; live mode needs explicit total input-byte,
+output-token and embedding-byte budgets and must not reindex or retry whole cases.
+Keep live reports out of automatic CI artifacts. CI uses isolated seeded PostgreSQL,
+no paid keys, and uploads only the labeled offline report. Structured request logs
+must select fixed categories/model IDs and bounded counters, excluding questions,
+SQL/results, sources, settings, headers and exception text. Request IDs are generated
+server-side; use the supplied no-access-log Uvicorn command. Read docs/evaluation.md,
+docs/observability.md and docs/ci.md before changing these contracts.
+
 - Use pytest and Ruff. Run checks relevant to the change and report their results.
 - Keep offline tests and CI deterministic and independent of paid API keys. Use
   stub providers for offline workflow tests; keep live smoke tests/evaluation

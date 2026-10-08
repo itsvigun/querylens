@@ -18,9 +18,10 @@ RUN groupadd --gid 10001 querylens \
 COPY --chown=querylens:querylens app ./app
 COPY --chown=querylens:querylens migrations ./migrations
 COPY --chown=querylens:querylens scripts ./scripts
+COPY --chown=querylens:querylens evals ./evals
 COPY --chown=querylens:querylens knowledge ./knowledge
 COPY --chown=querylens:querylens alembic.ini ./
 
 USER querylens
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log"]

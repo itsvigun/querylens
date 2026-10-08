@@ -78,6 +78,25 @@ QUERYLENS_INTEGRATION=1 QUERYLENS_BROWSER=1 uv run --locked --group browser pyte
 
 The browser dependency group is excluded from the production Docker image.
 
+## Evaluation and CI
+
+The twenty-case [evaluation](evaluation.md) uses real PostgreSQL with scripted
+calls/stub vectors and requires no API key:
+
+```bash
+mkdir -p artifacts
+uv run --locked python -m scripts.evaluate --offline --output artifacts/evaluation.json
+```
+
+Grader tests reject incorrect metrics, broken provenance, missing source/citation
+coverage and malformed CLI/live-budget selection. The integration evaluation test
+checks all twenty scenarios and that disposable indexes are removed while existing
+indexes remain unchanged. JSON logging tests inject secrets into submitted data,
+results and exceptions, and cover success, validation, busy, failures and concurrency.
+[CI](ci.md) runs offline, PostgreSQL and browser groups independently with no key.
+Live evaluation is a separate paid command requiring explicit total byte/token budgets;
+the full sixteen-case live suite has not been run.
+
 ## Live provider acceptance
 
 Live checks are paid and are separate from offline tests. Agree on a budget and
