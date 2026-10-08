@@ -1,0 +1,104 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  OPENAI_API_KEY: ""
+  LANGSMITH_TRACING: "false"
+  LANGCHAIN_TRACING_V2: "false"
+
+jobs:
+  offline:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.23"
+          python-version: "3.14.8"
+      - run: uv sync --locked
+      - run: uv lock --check
+      - run: uv run --locked ruff check .
+      - run: uv run --locked ruff format --check .
+      - run: node --check app/static/assets/app.js
+      - run: uv run --locked pytest -m 'not integration and not browser' -q
+
+  postgres:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: querylens
+      POSTGRES_DB: querylens
+      # Disposable public CI credentials, never repository/account secrets.
+      POSTGRES_PASSWORD: ci-owner-disposable-password
+      ANALYTICS_READONLY_PASSWORD: ci-analytics-disposable-password
+      KNOWLEDGE_WRITER_PASSWORD: ci-writer-disposable-password
+      KNOWLEDGE_READONLY_PASSWORD: ci-reader-disposable-password
+      QUERYLENS_INTEGRATION: "1"
+    services:
+      db:
+        image: pgvector/pgvector:0.8.6-pg17-bookworm
+        env:
+          POSTGRES_USER: querylens
+          POSTGRES_DB: querylens
+          POSTGRES_PASSWORD: ci-owner-disposable-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U querylens -d querylens"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.23"
+          python-version: "3.14.8"
+      - run: uv sync --locked
+      - run: uv run --locked alembic upgrade head
+      - run: uv run --locked python -m scripts.provision_roles
+      - run: uv run --locked python -m scripts.seed
+      - run: uv run --locked python -m scripts.verify_data
+      - run: uv run --locked alembic check
+      - run: uv run --locked pytest -m integration -q
+      - run: mkdir -p artifacts
+      - run: uv run --locked python -m scripts.evaluate --offline --output artifacts/evaluation.json
+      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        if: always()
+        with:
+          name: offline-postgres-evaluation
+          path: artifacts/evaluation.json
+          if-no-files-found: warn
+          retention-days: 14
+
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      QUERYLENS_BROWSER: "1"
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: "0.12.23"
+          python-version: "3.14.8"
+      - run: uv sync --locked --group browser
+      - run: uv run --locked --group browser playwright install --with-deps chromium
+      - run: uv run --locked --group browser pytest -m browser -q

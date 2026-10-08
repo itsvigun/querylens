@@ -21,6 +21,8 @@ def chat(body: ChatRequest, request: Request) -> dict:
     if not request.app.state.chat_lock.acquire(blocking=False):
         raise HTTPException(429, detail="Another analytics request is in progress.")
     try:
-        return ask(body.question)
+        result = ask(body.question)
+        request.state.chat_result = result
+        return result
     finally:
         request.app.state.chat_lock.release()

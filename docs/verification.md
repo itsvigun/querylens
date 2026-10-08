@@ -206,3 +206,61 @@ tool calls, one SQL attempt and no repairs; observed duration was 7804 ms.
 At the previously recorded dated prices, uncached estimated cost is $0.00616907;
 combined known usage for the recorded runs is $0.01899533, excluding the author's
 initial ingestion and any cached-input discount. This is an estimate, not an invoice.
+
+## Stage 7
+
+Final local checks on 2026-10-08 passed: 321 tests
+(231 offline, 72 PostgreSQL, 18 Chromium). The affected evaluation/logging group
+also passed all 27 targeted tests after the final grader changes.
+Ruff lint/format (69 Python files), JavaScript syntax, lock validation and
+`git diff --check` passed. No runtime or locked package version changed.
+
+The twenty-case **offline_scripted_postgres_evaluation** passed 20/20 cases and
+15/15 expected SQL tables, including empty and undefined results. Required-heading
+recall was 1.0 and mean best reciprocal rank 0.7239583333333334, using labeled
+gold-heading one-hot vectors and scripted searches. This measures actual pgvector
+ranking/source coverage under that fixture, not semantic embedding quality.
+The two expected terminal failures were deadline_exceeded and
+sql_retry_budget_exhausted. SQL repair and rejected-write recovery each made two
+attempts/one repair; exhausted recovery stopped at three attempts/two repairs;
+the deadline case dispatched no tools. Five extra dangerous SQL probes were rejected.
+The checked-in expected values remain independent of executed SQL.
+
+Logging tests captured actual JSON boundaries for CLI/API success, validation,
+busy responses, unexpected exceptions and concurrent requests. Credentials and
+newlines injected into questions, SQL/results, sources, identifiers and exceptions
+were absent from summaries and sanitized failure responses. Server request IDs
+were correlated with response headers/body; client IDs were ignored. Tokens and
+counts retained their typed values, while unknown model/error identifiers were
+removed. Docker and documented host startup disable arbitrary URL access logs.
+
+A fresh source/new Docker volume with temporary passwords passed migrations,
+roles, seed/control checks, twenty-case offline evaluation and API/root/assets
+HTTP checks. Missing-key chat returned a safe category and matching request ID,
+with no provider request. Five existing PostgreSQL workflow tests and the new
+complete evaluation test passed against that fresh database. Non-root execution,
+reader-only ask job credentials, secret/plan exclusion and absence of Playwright
+were checked. Temporary containers, volumes, source and secrets were removed.
+
+The new GitHub Actions workflow has offline, PostgreSQL and browser jobs with
+no API key, and publishes only the labeled offline evaluation report.
+Hosted [CI run 37830359113](https://github.com/itsvigun/querylens/actions/runs/37830359113)
+passed all three jobs on snapshot `4078992effb581f731096bc74d4c6f23cad079cf` in
+`verify/stage-7`. The offline evaluation artifact was uploaded successfully.
+The tested snapshot contains the final application/evaluator/test/workflow code;
+subsequent edits only record this evidence in documentation and the local plan.
+During that CI verification, main was at stage 6 commit `465e377`, with the
+stage 7 working changes captured in the separate verification branch.
+
+The main Docker API was rebuilt with the final code and left healthy. Root, assets,
+health, demo and OpenAPI returned HTTP 200. An invalid chat body returned HTTP 422
+with a valid request ID and exactly one sanitized JSON log; arbitrary URL access
+logs were absent. No provider request was made. The local offline report is
+`artifacts/evaluation.json`; it is Git-ignored and contains only synthetic results.
+
+No stage 7 paid evaluation ran. The author explicitly chose **offline only** when
+offered a separately budgeted sixteen-question live run. The OpenAI Docs skill
+was used to verify current official model pricing for that unexecuted proposal;
+no model, API adapter, key, pricing code or account setting changed. The earlier
+smoke-test budget was not spent again. Live-eligible questions remain an optional
+separate check, and the offline pass count is not live model accuracy.

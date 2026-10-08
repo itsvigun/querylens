@@ -9,13 +9,14 @@ include executed SQL/results, definition sources, actual usage and local trace.
 
 ## Current scope
 
-Stages 0–6 are implemented: API foundation, deterministic analytics, dedicated
+Stages 0–7 are implemented: API foundation, deterministic analytics, dedicated
 roles, AST-validated SQL, versioned ingestion/retrieval, OpenAI Responses tool
 calling, bounded LangGraph orchestration and a [web UI](ui.md) served by FastAPI.
 The browser displays questions, answers, SQL/results, sources, errors, the demo
-reference date and the synthetic label. Stage 6 verification is recorded in
-[verification.md](verification.md#stage-6). Evaluation/CI/observability is next,
-followed by deployment. No demo is deployed yet.
+reference date and the synthetic label. Stage 7 adds twenty synthetic evaluation
+cases, sanitized request summaries and GitHub Actions. See
+[verification.md](verification.md#stage-7) for actual checks. Deployment is next;
+no demo is deployed yet.
 
 ## Request and data flow
 
@@ -60,8 +61,9 @@ The backend inserts actual SQL-cell values into final facts and validates source
 IDs. This establishes provenance, not semantic correctness of SQL, labels or prose.
 Segment contributions do not establish causality. Deadlines are cooperative;
 returned-byte limits are not database memory/work limits. Per-process concurrency
-is not a shared deployment rate or spending limit. Broader semantic evaluation
-and deployment controls belong to later milestones.
+is not a shared deployment rate or spending limit. The evaluation suite has explicit scripted/stub and live modes; the stage 7
+baseline does not establish semantic model accuracy. Deployment controls belong
+to the next milestone.
 
 ## Module map
 
@@ -74,6 +76,9 @@ and deployment controls belong to later milestones.
 | [`app/tools/`](../app/tools) | Reviewed schema, AST policy, bounded SQL execution, validated dispatch |
 | [`app/rag/`](../app/rag) | Markdown chunking, embeddings, versioned indexes, atomic ingestion and retrieval |
 | [`app/llm/`](../app/llm) | Responses adapter, prompt/contracts, per-question graph and answer grounding |
+| [`app/observability.py`](../app/observability.py) | Allowlisted JSON summaries and request ID context |
+| [`evals/`](../evals) | Versioned synthetic questions, scripted provider and value/source graders |
+| [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | Offline, PostgreSQL and browser CI with an evaluation artifact |
 | [`migrations/`](../migrations) | Explicit schema changes |
 | [`scripts/`](../scripts) | Admin jobs, seed/control queries, ingestion/search/chat and live checks |
 | [`knowledge/`](../knowledge) | Business definitions ingested into pgvector |

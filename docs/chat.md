@@ -134,3 +134,10 @@ The first uses labeled stub providers/results. The second uses real PostgreSQL,
 pgvector, the SDK with offline HTTP transport and labeled stub embeddings.
 `scripts.verify_tool_calling --live` additionally checks that the live revenue
 answer runs through LangGraph; it still requires an explicit paid-test budget.
+
+## Request diagnostics
+
+Chat responses include a server-generated `X-Request-ID`; the service result also
+includes `request_id`. One sanitized JSON summary per request records usage,
+latency and tool/SQL counts. See [observability](observability.md) for fields and
+logging boundaries, and [evaluation](evaluation.md) for value/source checks.

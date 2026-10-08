@@ -169,5 +169,18 @@ services:
     environment: *chat-environment
     command: ["python", "-m", "scripts.verify_tool_calling", "--live"]
 
+  evaluate-offline:
+    <<: *app
+    profiles: ["tools"]
+    environment:
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: ${POSTGRES_DB:-querylens}
+      ANALYTICS_READONLY_PASSWORD: ${ANALYTICS_READONLY_PASSWORD:-}
+      KNOWLEDGE_READONLY_PASSWORD: ${KNOWLEDGE_READONLY_PASSWORD:-}
+      KNOWLEDGE_WRITER_PASSWORD: ${KNOWLEDGE_WRITER_PASSWORD:-}
+      OPENAI_API_KEY: ""
+    command: ["python", "-m", "scripts.evaluate", "--offline"]
+
 volumes:
   postgres_data:
