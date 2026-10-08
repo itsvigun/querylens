@@ -1,6 +1,8 @@
 """Per-request resources, with no migration or ingestion credentials in tools."""
 
 from contextlib import ExitStack
+from time import monotonic
+from uuid import uuid4
 
 from pydantic import ValidationError
 
@@ -20,7 +22,7 @@ from app.tools.database import DatabaseTools
 from app.tools.dispatch import Dispatcher
 
 
-def ask(question: str, *, settings: LLMSettings | None = None) -> dict:
+def _ask(question: str, *, settings: LLMSettings | None = None) -> dict:
     try:
         settings = settings if settings is not None else LLMSettings()
         with ExitStack() as stack:
@@ -58,3 +60,19 @@ def ask(question: str, *, settings: LLMSettings | None = None) -> dict:
         return {"status": "error", "error": {"category": str(exc)}}
     except ValidationError, ValueError:
         return {"status": "error", "error": {"category": "configuration_error"}}
+
+
+def ask(question: str, *, settings: LLMSettings | None = None) -> dict:
+    # Import here to keep workflow independent of the logging boundary.
+    from app.observability import REQUEST_ID, log_request
+
+    started = monotonic()
+    request_id = REQUEST_ID.get() or uuid4().hex
+    try:
+        result = _ask(question, settings=settings)
+    except Exception:
+        result = {"status": "error", "error": {"category": "request_failed"}}
+    result["request_id"] = request_id
+    if REQUEST_ID.get() is None:
+        log_request(request_id, result, int((monotonic() - started) * 1000))
+    return result
