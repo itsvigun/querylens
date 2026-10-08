@@ -258,9 +258,67 @@ with a valid request ID and exactly one sanitized JSON log; arbitrary URL access
 logs were absent. No provider request was made. The local offline report is
 `artifacts/evaluation.json`; it is Git-ignored and contains only synthetic results.
 
-No stage 7 paid evaluation ran. The author explicitly chose **offline only** when
+At initial stage 7 completion, no paid evaluation had run. The author chose **offline only** when
 offered a separately budgeted sixteen-question live run. The OpenAI Docs skill
 was used to verify current official model pricing for that unexecuted proposal;
 no model, API adapter, key, pricing code or account setting changed. The earlier
-smoke-test budget was not spent again. Live-eligible questions remain an optional
-separate check, and the offline pass count is not live model accuracy.
+smoke-test budget was not spent again. That initial decision was superseded by the bounded authorization below; the
+offline pass count remains separate from live model accuracy.
+
+
+### Bounded live evaluation — 2026-10-08
+
+The author subsequently authorized a live evaluation with a $0.10 budget.
+Stage 7 was committed locally as `1c2f303` before the run. The application,
+provider adapter, questions, references and grading policy were unchanged from
+the CI-tested implementation. A two-case subset was chosen to fit a conservative
+reservation within the new budget; the full sixteen-case live suite was not run.
+
+```bash
+uv run --locked python -m scripts.evaluate --live --cases arpu arppu \
+  --max-input-bytes 96000 --max-output-tokens 5000 \
+  --max-embedding-input-bytes 8000 \
+  --output artifacts/live-arpu-arppu-2026-10-08.json
+```
+
+Each question received 48000 input bytes and 2500 output tokens; embeddings shared
+an 8000-byte allowance. Official prices were rechecked using OpenAI Docs:
+[GPT-5.4 mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini) at
+$0.75/M input and $4.50/M output, and
+[text-embedding-3-small](https://developers.openai.com/api/docs/models/text-embedding-3-small)
+at $0.02/M input. Treating admitted bytes as conservative token allowances gives
+$0.09466 for the selected limits. This local reservation is not an account billing
+control or a hard wall-clock guarantee; normal SDK retries remained disabled.
+The key and compatible existing index were checked without printing secrets;
+there was no ingestion, reindexing or settings change.
+
+| Case | Executed row | Expected ratio | Result |
+|---|---|---|---|
+| `arpu` | `336080.07`, `9501`, `35.37` | `35.37312599` | Answered; strict precision and source coverage failed |
+| `arppu` | `336080.07`, `3396`, `98.96` | `98.96350707` | Answered; strict precision failed |
+
+Both answers preserved fact-to-SQL-cell provenance and the correct revenue and
+denominators. The returned ratios have two decimal places, while the suite
+compares at eight. The questions did not explicitly request eight-place precision,
+so this is a result-contract mismatch; it does not by itself establish a wrong
+underlying denominator. ARPU also retrieved/cited two of its three required
+headings; ARPPU covered both required headings. The report stores coverage counts,
+not individual retrieved/cited headings, so it does not establish which ARPU
+heading was missing. Overall definition recall was 0.8333333333333333 and definition MRR
+0.5555555555555556. The strict report records **0/2 passed**, exits 1 and retains
+both failures. There were no workflow error categories or SQL repairs
+reported in the scored results. No paid rerun was performed to replace this evidence.
+
+Actual usage: six Responses requests, 13497 input and 1023 output tokens, complete
+usage reporting, and 68573 attempted input bytes. Two query embeddings used
+32 tokens / 195 bytes. Durations were 6772 ms (ARPU) and 5426 ms (ARPPU), not a
+latency benchmark. At the dated uncached prices, estimated usage cost is
+**$0.01472689**, below the authorized $0.10, excluding any cached-input discount
+and taxes; this is an estimate, not an invoice. The full report is in the ignored
+`artifacts/live-arpu-arppu-2026-10-08.json` and is not a CI artifact.
+
+Follow-up: make ratio precision explicit in evaluation questions or define a
+reviewed rounding tolerance; verify all required definitions are retrieved and
+cited, and include individual source headings in future diagnostic reports. Preserve this original report and independent gold values
+when comparing a later change. These two sampled cases do not measure the whole
+suite's accuracy, and the offline baseline remains separately labeled.
