@@ -110,3 +110,16 @@ count must never be presented as live model accuracy. Even live results establis
 only the sampled synthetic scenarios, without a prose judge, confidence intervals
 or a latency benchmark. See [verification](verification.md#stage-7) for checks
 actually run and [CI](ci.md) for the uploaded offline report.
+
+
+## First bounded live result
+
+A later $0.10-authorized run selected ARPU and ARPPU only. Both answered with the
+correct revenue and denominators and preserved SQL-cell provenance, but the strict
+evaluator recorded 0/2: both ratios were rounded to two decimal places rather than
+eight, and ARPU covered only two of its three required source headings. The
+report does not identify the missing heading. The original report and
+usage are recorded in [verification](verification.md#bounded-live-evaluation--2026-10-08).
+The comparison contract needs explicit question precision or a reviewed rounding
+policy before treating this precision failure as semantic metric error. No expected
+values, grading rules or paid results were rewritten after the run.
