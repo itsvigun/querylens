@@ -16,6 +16,9 @@ section of the verification record. All commands run from the repository root.
 | [Ingestion and retrieval](retrieval.md) | Chunking, embeddings, indexing/reindexing, search and paid retrieval check |
 | [Chat and LangGraph](chat.md) | Responses contract, CLI/API, grounding, graph transitions and budgets |
 | [Web UI](ui.md) | Browser interaction, answer evidence, errors, rendering safety and UI checks |
+| [Evaluation](evaluation.md) | Twenty synthetic questions, result/source graders, offline report and explicit live budgets |
+| [Observability](observability.md) | Request IDs, sanitized JSON usage/latency summaries and logging boundaries |
+| [CI](ci.md) | GitHub Actions jobs, fresh PostgreSQL, browser tests and evaluation artifact |
 | [Testing and acceptance](testing.md) | Offline, PostgreSQL, drift checks and explicit live checks |
 | [Verification record](verification.md) | Dated local, Docker and live evidence, observed usage and limitations |
 

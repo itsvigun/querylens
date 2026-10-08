@@ -4,9 +4,10 @@ Ask business questions over synthetic PostgreSQL data. QueryLens retrieves metri
 definitions, uses OpenAI tool calls to execute validated read-only SQL, and returns
 answers with queries, results and sources.
 
-**Status:** stage 6 complete — a web UI backed by bounded LangGraph orchestration.
+**Status:** stage 7 implementation — web UI, bounded LangGraph, synthetic evaluation,
+structured logs and CI.
 The demo uses EUR and a fixed reference date of **2026-10-01 UTC**.
-[Verification evidence](docs/verification.md#stage-6).
+[Verification evidence](docs/verification.md#stage-7).
 
 **Stack:** Python 3.14, FastAPI, PostgreSQL/pgvector, SQLAlchemy, Alembic,
 OpenAI Responses, LangGraph, uv and Docker Compose.
@@ -55,6 +56,7 @@ the database volume is preserved.
 - [Setup and host development](docs/setup.md) · [Configuration](docs/configuration.md)
 - [Architecture](docs/architecture.md) · [Data and metrics](docs/data.md)
 - [SQL tool](docs/sql-tool.md) · [Retrieval](docs/retrieval.md) · [Chat and LangGraph](docs/chat.md)
-- [Web UI](docs/ui.md) · [Testing](docs/testing.md) · [Verification record](docs/verification.md)
+- [Web UI](docs/ui.md) · [Evaluation](docs/evaluation.md) · [Observability](docs/observability.md)
+- [Testing](docs/testing.md) · [CI](docs/ci.md) · [Verification record](docs/verification.md)
 
 Working rules: [AGENTS.md](AGENTS.md). Business definitions: [knowledge/](knowledge).

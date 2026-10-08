@@ -78,7 +78,7 @@ uv run --locked python -m scripts.provision_roles
 uv run --locked python -m scripts.seed
 uv run --locked python -m scripts.verify_data
 docker compose stop api
-uv run --locked uvicorn app.main:app --reload
+uv run --locked uvicorn app.main:app --reload --no-access-log
 ```
 
 Host-side Python connects to `127.0.0.1:5433`; container services connect to
