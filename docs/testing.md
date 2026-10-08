@@ -9,7 +9,7 @@ Offline checks need no database service or paid API keys:
 ```bash
 uv run --locked ruff check .
 uv run --locked ruff format --check .
-uv run --locked pytest -m 'not integration'
+uv run --locked pytest -m 'not integration and not browser'
 ```
 
 Offline tests cover settings, credential separation, health behavior, deterministic
@@ -39,10 +39,10 @@ uv lock --check
 uv run --locked alembic check
 ```
 
-`alembic check` needs the migrated demo database. The full local suite uses:
+`alembic check` needs the migrated demo database. The backend suite uses:
 
 ```bash
-QUERYLENS_INTEGRATION=1 uv run --locked pytest -q
+QUERYLENS_INTEGRATION=1 uv run --locked pytest -m 'not browser' -q
 ```
 
 ## Targeted workflow checks
@@ -51,6 +51,32 @@ QUERYLENS_INTEGRATION=1 uv run --locked pytest -q
 uv run --locked pytest tests/test_workflow.py -q
 QUERYLENS_INTEGRATION=1 uv run --locked pytest tests/test_llm_integration.py -q
 ```
+
+## Browser checks
+
+Install the optional browser group and its pinned Chromium binary once:
+
+```bash
+uv sync --locked --group browser
+uv run --locked --group browser playwright install chromium
+QUERYLENS_BROWSER=1 uv run --locked --group browser pytest -m browser -q
+```
+
+These tests start a temporary local FastAPI server. Every chat call uses a labeled
+offline answer; they require no database or API key and make no paid calls.
+They cover desktop/mobile layout, literal rendering of untrusted content, exact
+numeric strings, NULL/empty/truncated results, clarification, failures, busy and
+timeout states, and manual retry. Browser checks skip unless explicitly enabled.
+Set `QUERYLENS_SCREENSHOT_DIR` to a temporary directory to save labeled fixture
+screenshots from the desktop/mobile answer checks.
+
+Run all three groups against the prepared demo database:
+
+```bash
+QUERYLENS_INTEGRATION=1 QUERYLENS_BROWSER=1 uv run --locked --group browser pytest -q
+```
+
+The browser dependency group is excluded from the production Docker image.
 
 ## Live provider acceptance
 

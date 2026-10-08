@@ -32,6 +32,8 @@ question. Broader semantic evaluation belongs to the evaluation milestone.
 
 After migrations, role provisioning, seed and **real ingestion**:
 
+Open the [web UI](http://127.0.0.1:8000/) to ask through the browser, or use the CLI:
+
 ```bash
 uv run --locked python -m scripts.ask 'What was revenue last month, in EUR?'
 # Or:

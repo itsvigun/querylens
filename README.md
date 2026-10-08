@@ -4,9 +4,9 @@ Ask business questions over synthetic PostgreSQL data. QueryLens retrieves metri
 definitions, uses OpenAI tool calls to execute validated read-only SQL, and returns
 answers with queries, results and sources.
 
-**Status:** stage 5 complete — bounded LangGraph orchestration. A local API is
-available; the web UI is next. The demo uses EUR and a fixed reference date of
-**2026-10-01 UTC**. [Verification evidence](docs/verification.md#stage-5).
+**Status:** stage 6 complete — a web UI backed by bounded LangGraph orchestration.
+The demo uses EUR and a fixed reference date of **2026-10-01 UTC**.
+[Verification evidence](docs/verification.md#stage-6).
 
 **Stack:** Python 3.14, FastAPI, PostgreSQL/pgvector, SQLAlchemy, Alembic,
 OpenAI Responses, LangGraph, uv and Docker Compose.
@@ -41,8 +41,9 @@ For chat, populate the knowledge index with real embeddings (paid API call):
 docker compose run --rm ingest
 ```
 
-Open [API documentation](http://127.0.0.1:8000/docs) and call `POST /api/chat`,
-for example: “What was revenue last month, in EUR?”
+Open [QueryLens](http://127.0.0.1:8000/) and ask, for example,
+“What was revenue last month, in EUR?” [API documentation](http://127.0.0.1:8000/docs)
+is also available.
 Services bind to loopback. Health endpoints are `/health/live` and `/health/ready`;
 `/demo` exposes the synthetic dataset metadata. Stop with `docker compose down`;
 the database volume is preserved.
@@ -54,6 +55,6 @@ the database volume is preserved.
 - [Setup and host development](docs/setup.md) · [Configuration](docs/configuration.md)
 - [Architecture](docs/architecture.md) · [Data and metrics](docs/data.md)
 - [SQL tool](docs/sql-tool.md) · [Retrieval](docs/retrieval.md) · [Chat and LangGraph](docs/chat.md)
-- [Testing](docs/testing.md) · [Verification record](docs/verification.md)
+- [Web UI](docs/ui.md) · [Testing](docs/testing.md) · [Verification record](docs/verification.md)
 
 Working rules: [AGENTS.md](AGENTS.md). Business definitions: [knowledge/](knowledge).

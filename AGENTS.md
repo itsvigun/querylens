@@ -149,6 +149,16 @@ transitions and counters alongside tool trace and executed results. Exercise
 correct queries, clarification, unsupported questions, SQL repair, exhausted
 budgets and deadlines offline; use real PostgreSQL for SQL error/recovery paths.
 
+Stage 6 serves a browser-native UI at `/` from `app/static/`, with same-origin
+assets and the existing `/demo` and `/api/chat` contracts. Keep all returned text
+literal, preserve exact numeric strings and undefined values, and make source/SQL
+evidence and truncation visible. Opening the page or choosing examples must not
+invoke providers. Questions remain independent; clarification edits the full
+question. No client secrets, browser persistence or automatic retries. UI context
+must show the synthetic label and actual demo reference date. Use the optional
+`browser` group and `QUERYLENS_BROWSER=1` for Chromium tests with labeled offline
+answers; ordinary tests remain independent of browser installs and paid keys.
+
 - Use pytest and Ruff. Run checks relevant to the change and report their results.
 - Keep offline tests and CI deterministic and independent of paid API keys. Use
   stub providers for offline workflow tests; keep live smoke tests/evaluation
