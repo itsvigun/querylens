@@ -54,7 +54,9 @@ failure returns a structured `status=error` result; clarification, unsupported
 questions and insufficient context are separate statuses. CLI exits nonzero on
 error. SQL attempts include repairs, so three attempts allow at most two repairs
 after the initial query. Deadlines are cooperative and cannot guarantee a hard network wall-clock cutoff. In-memory
-concurrency limits are not a shared deployment rate/cost budget.
+concurrency limits alone are not a shared deployment rate/cost budget. Public mode
+adds a PostgreSQL gate before provider creation; see [deployment](deployment.md).
+The CLI remains an explicit operator action outside this HTTP ledger.
 
 Explicit paid acceptance uses one revenue question and checks actual reference
 value `336080.07`, schema/retrieval/SQL tools and the revenue source:

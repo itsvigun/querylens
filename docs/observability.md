@@ -50,3 +50,11 @@ inspection; logs keep only aggregate counts. Duration is observed per request,
 not a performance claim. No estimated billing field is added; recorded usage and
 historical smoke estimates remain separate. See [chat](chat.md), [configuration](configuration.md)
 and [verification](verification.md#stage-7).
+
+Public admission categories (`demo_busy`, `demo_rate_limit`,
+`demo_budget_exhausted`, `demo_controls_unavailable`, `demo_policy_mismatch`) and
+`request_too_large` are allowlisted fixed errors. Denials record no provider usage.
+HTTP 413/429/503 paths retain generated request IDs and the single summary event.
+The supplied Docker entrypoint is now `python -m scripts.serve`, which retains
+disabled access logs. Admission reservation accounting is separate from usage logs
+and invoices; see [deployment](deployment.md).

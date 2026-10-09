@@ -3,6 +3,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import NullPool
 
 from app.config import Settings
+from app.db import operations  # noqa: F401
 from app.db.schema import metadata
 from app.rag import schema as knowledge_schema  # noqa: F401
 

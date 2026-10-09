@@ -330,3 +330,30 @@ def test_demo_context_failure_and_reload(ui):
     expect(page.locator("#reference-date")).to_contain_text("2026-10-01 UTC")
     expect(page.get_by_role("button", name="Ask QueryLens")).to_be_enabled()
     assert state["calls"] == []
+
+
+@pytest.mark.parametrize(
+    "category,message,http_status",
+    [
+        ("demo_budget_exhausted", "The demo's monthly AI allowance has been used.", 429),
+        ("demo_rate_limit", "The demo has reached its request limit.", 429),
+        ("demo_controls_unavailable", "The demo is temporarily unavailable.", 503),
+    ],
+)
+def test_public_limit_errors_display_specific_message_without_retry(
+    ui, category, message, http_status
+):
+    from playwright.sync_api import expect
+
+    page, state, _ = ui
+    seen = []
+
+    def respond(route):
+        seen.append(True)
+        route.fulfill(status=http_status, json={"status": "error", "error": {"category": category}})
+
+    page.route("**/api/chat", respond)
+    ask(page)
+    expect(page.get_by_text(message, exact=False)).to_be_visible()
+    expect(page.get_by_role("button", name="Ask QueryLens")).to_be_enabled()
+    assert len(seen) == 1 and not state["calls"]

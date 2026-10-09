@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import Field, SecretStr, model_validator
@@ -6,7 +7,9 @@ from sqlalchemy import URL
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env", env_file_encoding="utf-8", extra="ignore", hide_input_in_errors=True
+    )
 
     postgres_user: str = Field(default="querylens", min_length=1)
     postgres_password: SecretStr = Field(min_length=1)
@@ -112,3 +115,30 @@ class LLMSettings(BaseSettings):
     llm_max_sql_repairs: int = Field(default=2, ge=0, le=2)
     llm_max_input_bytes: int = Field(default=128000, ge=1000, le=128000)
     llm_max_output_tokens: int = Field(default=4000, ge=256, le=4000)
+
+
+class PublicDemoSettings(BaseSettings):
+    """No paid public traffic until an administrator configures the shared policy."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
+
+    public_demo_enabled: bool = False
+    railway_environment_id: str | None = None
+    public_chat_monthly_budget_usd: Decimal = Field(
+        default=Decimal("0"), ge=0, le=100, decimal_places=6
+    )
+    public_chat_requests_per_minute: int = Field(default=6, ge=1, le=60)
+    public_chat_max_concurrent: int = Field(default=1, ge=1, le=4)
+
+    @model_validator(mode="after")
+    def require_railway_controls(self):
+        if self.railway_environment_id and not self.public_demo_enabled:
+            raise ValueError("Railway requires public demo controls")
+        return self
+
+
+class DemoControlSettings(Settings):
+    postgres_user: Literal["querylens_demo_control"] = Field(
+        default="querylens_demo_control", validation_alias="DEMO_CONTROL_USER"
+    )
+    postgres_password: SecretStr = Field(min_length=16, validation_alias="DEMO_CONTROL_PASSWORD")

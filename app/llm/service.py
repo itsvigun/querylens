@@ -13,6 +13,7 @@ from app.config import (
     LLMSettings,
     SQLToolLimits,
 )
+from app.demo_gate import CHAT_EMBEDDING_MAX_BYTES
 from app.llm.contracts import SafeError
 from app.llm.openai_provider import OpenAIProvider
 from app.llm.session import run_session
@@ -22,14 +23,21 @@ from app.tools.database import DatabaseTools
 from app.tools.dispatch import Dispatcher
 
 
-def _ask(question: str, *, settings: LLMSettings | None = None) -> dict:
+def _ask(
+    question: str,
+    *,
+    settings: LLMSettings | None = None,
+    embedding_settings: EmbeddingSettings | None = None,
+) -> dict:
     try:
         settings = settings if settings is not None else LLMSettings()
         with ExitStack() as stack:
             provider = OpenAIProvider(settings)
             stack.callback(provider.close)
-            embedding_settings = EmbeddingSettings()
-            embedder = OpenAIEmbedder(embedding_settings, max_input_bytes=16000)
+            embedding_settings = (
+                embedding_settings if embedding_settings is not None else EmbeddingSettings()
+            )
+            embedder = OpenAIEmbedder(embedding_settings, max_input_bytes=CHAT_EMBEDDING_MAX_BYTES)
             stack.callback(embedder.close)
             configured = SQLToolLimits()
             # The chat tool returns bounded samples; aggregate totals belong in SQL.
@@ -62,14 +70,19 @@ def _ask(question: str, *, settings: LLMSettings | None = None) -> dict:
         return {"status": "error", "error": {"category": "configuration_error"}}
 
 
-def ask(question: str, *, settings: LLMSettings | None = None) -> dict:
+def ask(
+    question: str,
+    *,
+    settings: LLMSettings | None = None,
+    embedding_settings: EmbeddingSettings | None = None,
+) -> dict:
     # Import here to keep workflow independent of the logging boundary.
     from app.observability import REQUEST_ID, log_request
 
     started = monotonic()
     request_id = REQUEST_ID.get() or uuid4().hex
     try:
-        result = _ask(question, settings=settings)
+        result = _ask(question, settings=settings, embedding_settings=embedding_settings)
     except Exception:
         result = {"status": "error", "error": {"category": "request_failed"}}
     result["request_id"] = request_id

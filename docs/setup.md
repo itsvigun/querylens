@@ -16,7 +16,7 @@ cp .env.example .env
 ```
 
 Set `POSTGRES_PASSWORD`, `ANALYTICS_READONLY_PASSWORD`,
-`KNOWLEDGE_WRITER_PASSWORD`, and `KNOWLEDGE_READONLY_PASSWORD` in `.env` to distinct
+`KNOWLEDGE_WRITER_PASSWORD`, `KNOWLEDGE_READONLY_PASSWORD`, and `DEMO_CONTROL_PASSWORD` in `.env` to distinct
 local passwords. Dedicated-role passwords must have at least 16 characters.
 Example values are placeholders.
 `.env` is excluded from Git and the Docker build context.
@@ -103,7 +103,8 @@ details. This is foundation readiness; it does not establish end-to-end AI readi
 The migration service is an explicit job under the `tools` Compose profile;
 regular API startup never applies migrations. The first migration enables the
 `vector` extension; the second creates analytics tables and a separate knowledge
-schema. The third creates knowledge index metadata and vector chunks. Role grants
+schema. The third creates knowledge index metadata and vector chunks. The fourth adds the
+separate operations schema for public admission controls. Role grants
 are provisioned after migration. Foundation readiness checks migrations/pgvector;
 it does not check embedding account access or index contents. Retrieval itself
 checks compatible index metadata and fails explicitly if missing. To inspect migrations:
@@ -129,3 +130,8 @@ Open `/` to ask through the [web UI](ui.md), `/docs` to call `POST /api/chat`,
 or use the [chat CLI](chat.md).
 Health checks do not call OpenAI. Migrations, role provisioning, seed and
 knowledge ingestion are explicit jobs, not startup tasks.
+
+For public hosting and explicit deployment jobs, follow [deployment.md](deployment.md).
+Local defaults keep public mode disabled; the Railway configuration requires it.
+The Docker entrypoint `python -m scripts.serve` supports `PORT`, keeps access logs
+and forwarded-header trust disabled, and performs no data/provider jobs.

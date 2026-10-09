@@ -22,13 +22,7 @@ x-embeddings: &embedding-environment
   KNOWLEDGE_INDEX_NAME: ${KNOWLEDGE_INDEX_NAME:-default}
   EMBEDDING_TIMEOUT_SECONDS: ${EMBEDDING_TIMEOUT_SECONDS:-20}
 
-x-chat: &chat-environment
-  <<: *embedding-environment
-  POSTGRES_HOST: db
-  POSTGRES_PORT: 5432
-  POSTGRES_DB: ${POSTGRES_DB:-querylens}
-  ANALYTICS_READONLY_PASSWORD: ${ANALYTICS_READONLY_PASSWORD:-}
-  KNOWLEDGE_READONLY_PASSWORD: ${KNOWLEDGE_READONLY_PASSWORD:-}
+x-llm: &llm-environment
   LLM_MODEL: ${LLM_MODEL:-gpt-5.4-mini}
   LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-20}
   REQUEST_TIMEOUT_SECONDS: ${REQUEST_TIMEOUT_SECONDS:-60}
@@ -38,6 +32,21 @@ x-chat: &chat-environment
   LLM_MAX_SQL_REPAIRS: ${LLM_MAX_SQL_REPAIRS:-2}
   LLM_MAX_INPUT_BYTES: ${LLM_MAX_INPUT_BYTES:-128000}
   LLM_MAX_OUTPUT_TOKENS: ${LLM_MAX_OUTPUT_TOKENS:-4000}
+
+x-demo: &demo-environment
+  PUBLIC_DEMO_ENABLED: ${PUBLIC_DEMO_ENABLED:-false}
+  PUBLIC_CHAT_MONTHLY_BUDGET_USD: ${PUBLIC_CHAT_MONTHLY_BUDGET_USD:-0}
+  PUBLIC_CHAT_REQUESTS_PER_MINUTE: ${PUBLIC_CHAT_REQUESTS_PER_MINUTE:-6}
+  PUBLIC_CHAT_MAX_CONCURRENT: ${PUBLIC_CHAT_MAX_CONCURRENT:-1}
+  DEMO_CONTROL_PASSWORD: ${DEMO_CONTROL_PASSWORD:-change-me-demo-control-local}
+
+x-chat: &chat-environment
+  <<: [*embedding-environment, *llm-environment]
+  POSTGRES_HOST: db
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: ${POSTGRES_DB:-querylens}
+  ANALYTICS_READONLY_PASSWORD: ${ANALYTICS_READONLY_PASSWORD:-}
+  KNOWLEDGE_READONLY_PASSWORD: ${KNOWLEDGE_READONLY_PASSWORD:-}
   SQL_MAX_ROWS: ${SQL_MAX_ROWS:-1000}
   SQL_MAX_RESULT_BYTES: ${SQL_MAX_RESULT_BYTES:-65536}
   SQL_STATEMENT_TIMEOUT_MS: ${SQL_STATEMENT_TIMEOUT_MS:-5000}
@@ -64,7 +73,7 @@ services:
   api:
     <<: *app
     environment:
-      <<: [*app-environment, *chat-environment]
+      <<: [*app-environment, *chat-environment, *demo-environment]
     init: true
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
@@ -92,7 +101,27 @@ services:
       ANALYTICS_READONLY_PASSWORD: ${ANALYTICS_READONLY_PASSWORD:-}
       KNOWLEDGE_WRITER_PASSWORD: ${KNOWLEDGE_WRITER_PASSWORD:-}
       KNOWLEDGE_READONLY_PASSWORD: ${KNOWLEDGE_READONLY_PASSWORD:-}
+      DEMO_CONTROL_PASSWORD: ${DEMO_CONTROL_PASSWORD:-change-me-demo-control-local}
     command: ["python", "-m", "scripts.provision_roles"]
+
+  demo-policy:
+    <<: *app
+    profiles: ["tools"]
+    environment:
+      <<: [*app-environment, *demo-environment, *llm-environment]
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+    command: ["python", "-m", "scripts.demo_policy", "--status"]
+
+  deploy-setup:
+    <<: *app
+    profiles: ["tools"]
+    environment:
+      <<: [*app-environment, *demo-environment, *llm-environment]
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      ANALYTICS_READONLY_PASSWORD: ${ANALYTICS_READONLY_PASSWORD:-}
+      KNOWLEDGE_READONLY_PASSWORD: ${KNOWLEDGE_READONLY_PASSWORD:-}
+      KNOWLEDGE_WRITER_PASSWORD: ${KNOWLEDGE_WRITER_PASSWORD:-}
+    command: ["python", "-m", "scripts.deploy_setup"]
 
   seed:
     <<: *app

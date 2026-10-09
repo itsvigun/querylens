@@ -322,3 +322,89 @@ reviewed rounding tolerance; verify all required definitions are retrieved and
 cited, and include individual source headings in future diagnostic reports. Preserve this original report and independent gold values
 when comparing a later change. These two sampled cases do not measure the whole
 suite's accuracy, and the offline baseline remains separately labeled.
+
+## Stage 8 preparation — 2026-10-09
+
+Implemented local deployment preparation; **no public URL, Railway resource,
+cloud backup/restore or deployed live acceptance is verified**. Account access,
+hosting budget and a separate paid ingestion/five-question/public-chat allowance
+remain pending. No provider calls were made in this session.
+
+- Railway API, offline foundation-job and explicit paid-ingestion TOML files,
+  reviewed against the current official config/HTTPS/volume documentation.
+  TOML parsing passed; direct JSON-schema retrieval returned HTTP 403, and these
+  configurations have not been accepted by an actual Railway deployment yet.
+- `scripts.serve` supports a dynamic `PORT`, disables Uvicorn access logs and
+  forwarded-header trust, and does not run data/provider jobs. Docker remains
+  non-root. Setup is an explicit fail-fast job with sanitized step/status output;
+  ingestion is separate, never an automatic startup/pre-deploy side effect.
+- Migration `0004_demo_controls` adds the separate operations ledger. The optional
+  fourth role can operate counters/leases and read policy/migration metadata, but
+  cannot change policy, access analytics/knowledge or create relations.
+- Public HTTP admission checks a shared transactional policy fingerprint, fixed
+  UTC-minute rate, durable active leases and UTC-month reservation before provider
+  creation. Unknown usage/crashes never reclaim reserves; admin recovery preserves
+  charges. Default reservation is $0.114320 with dated standard prices and existing
+  input/output/embedding caps, not a provider invoice or account billing guarantee.
+  Policy changes preserve counters and refuse active leases. Disabled public
+  controls on Railway fail startup. The local default remains disabled, with a
+  zero configured public budget.
+- HTTP 413 enforces a 16384-byte body limit before parsing, including chunks;
+  the 2000-byte question bound remains. Public busy/rate/budget errors are explicit
+  HTTP 429 categories, policy/storage failures HTTP 503. Local and shared public
+  busy responses include a retry hint. UI messages remain literal, with no
+  automatic retry. Settings validation text hides secret input values.
+
+Final checks: **354 passed** (253 offline, 80 PostgreSQL, 21 Chromium). New tests
+cover competing gates, persistent charges, no automatic crash recovery/refund,
+policy mismatch/zero budgets, minute rollover, separate monthly allocations,
+lock timeout/failed cleanup, role permissions, public HTTP without owner/provider
+credentials, bounded bodies, safe setup failures and browser limit messages.
+The operations integration fixture refuses a populated ledger before cleanup;
+it must not be run against a live/public ledger.
+
+Ruff lint/format (78 Python files), JavaScript syntax, locked dependency check
+(65 packages, unchanged), Alembic drift check and Git whitespace check passed.
+CI receives only an additional disposable demo-role password; new hosted CI was
+not run or claimed. The earlier stage 7 hosted run remains historical evidence.
+
+An isolated source copy, fresh PostgreSQL volume and five generated temporary DB
+passwords followed the documented Docker setup: migrate → roles → seed → control
+verification → API. UI/assets/demo/health/OpenAPI returned 200. Offline evaluation
+passed 20/20 with scripted providers/gold-heading stub vectors. The explicit
+foundation job was also repeated successfully. Its first attempt exposed missing
+role secrets in the chosen Compose job environment; a dedicated `deploy-setup`
+environment corrected this while retaining the smaller `demo-policy` environment.
+
+A separate public container then ran on **PORT 8123** with only analytics reader,
+knowledge reader and demo-control passwords, an empty OpenAI key, and no owner or
+writer credentials. Readiness passed; a chat returned the safe `missing_api_key`
+error without constructing a paid provider client. The ledger retained one
+114320-micro-USD conservative allocation and no active lease. Stopping/restarting
+that API and restarting the fresh DB preserved the synthetic fingerprint and
+exact monthly counters. This was a local missing-key exercise, not hosted/live AI
+acceptance. The harness normalized case-insensitive HTTP header names after an
+initial assertion mismatch. Temporary containers, volume, source and secrets
+were removed; the main demo database/default index were preserved.
+
+The main DB is migrated/provisioned at `0004_demo_controls`. Its operations ledger
+is empty after tests; the real default index retains 25 nonzero 1536-dimensional
+small-model vectors and corpus hash
+`575c62529847786fdb4875e155b03773b49e75713e89ec2660b2f2675b1af653`.
+A random demo-control password was added only to the ignored mode-600 local `.env`,
+without displaying it. The README screenshot is the actual local initial UI state,
+visually inspected, with no question/model answer and no chat request.
+
+Remaining stage 8 acceptance: approved hosting/access/budgets, actual HTTPS URL,
+persistent real embedding index after a hosted restart, configured/tested backups,
+and five deployed live prompts with independent values/source evidence, bounded
+failures and actual usage. The original strict ARPU/ARPPU failures are preserved;
+no paid rerun or changes to evaluation questions/gold values were made.
+
+Final local report: `artifacts/evaluation-stage8-offline-2026-10-09.json`,
+20/20 scripted/stub cases, 15/15 metric tables, definition recall 1.0 and MRR
+0.7239583333333334; this does not establish model semantic quality. The main
+Docker API was rebuilt with the final public busy-response change and is healthy;
+UI/assets/demo/health/OpenAPI returned 200, malformed chat 422 and oversized body
+413 with generated IDs. A scan of 38 changed/new files found no matches for actual
+local secret values; 148 repository documentation link paths resolved.

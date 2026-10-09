@@ -16,6 +16,12 @@ const statusLabels = {
   insufficient_context: "Missing context", error: "Could not complete",
 };
 const errors = {
+  demo_busy: "Another question is already running. Wait for it to finish, then try again.",
+  demo_rate_limit: "The demo has reached its request limit. Wait a minute before trying again.",
+  demo_budget_exhausted: "The demo's monthly AI allowance has been used. Please return next month.",
+  demo_controls_unavailable: "The demo is temporarily unavailable. Please try again later.",
+  demo_policy_mismatch: "The demo is temporarily unavailable. Please try again later.",
+  http_413: "The request is too large. Shorten your question and try again.",
   missing_api_key: "OpenAI is not configured. Set OPENAI_API_KEY in the server's local .env and restart the API.",
   configuration_error: "The server configuration is incomplete. Check its provider and database settings.",
   index_missing: "The knowledge index is missing. Run the knowledge ingestion job, then ask again.",
@@ -85,7 +91,16 @@ async function requestJSON(url, options = {}, timeout = 130000) {
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
     const response = await fetch(url, { ...options, signal: controller.signal, credentials: "same-origin" });
-    if (!response.ok) throw new Error(`http_${response.status}`);
+    if (!response.ok) {
+      let category;
+      try {
+        const data = await response.json();
+        if (data?.status === "error" && ["demo_busy", "demo_rate_limit", "demo_budget_exhausted", "demo_controls_unavailable", "demo_policy_mismatch"].includes(data.error?.category)) {
+          category = data.error.category;
+        }
+      } catch { /* Keep the HTTP fallback for malformed error bodies. */ }
+      throw new Error(category || `http_${response.status}`);
+    }
     try { return await response.json(); }
     catch { throw new Error("invalid_response"); }
   } catch (error) {

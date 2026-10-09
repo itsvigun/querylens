@@ -1,0 +1,8 @@
+# Select only for an explicitly approved paid ingestion job.
+[build]
+builder = "DOCKERFILE"
+dockerfilePath = "Dockerfile"
+
+[deploy]
+startCommand = "python -m scripts.ingest"
+restartPolicyType = "NEVER"

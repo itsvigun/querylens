@@ -48,6 +48,7 @@ jobs:
       ANALYTICS_READONLY_PASSWORD: ci-analytics-disposable-password
       KNOWLEDGE_WRITER_PASSWORD: ci-writer-disposable-password
       KNOWLEDGE_READONLY_PASSWORD: ci-reader-disposable-password
+      DEMO_CONTROL_PASSWORD: ci-demo-disposable-password
       QUERYLENS_INTEGRATION: "1"
     services:
       db:

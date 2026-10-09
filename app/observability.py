@@ -22,6 +22,12 @@ ERRORS = (
         "busy",
         "invalid_request",
         "request_failed",
+        "request_too_large",
+        "demo_policy_mismatch",
+        "demo_controls_unavailable",
+        "demo_rate_limit",
+        "demo_busy",
+        "demo_budget_exhausted",
     }
 )
 STATUSES = {"answered", "clarification", "insufficient_context", "unsupported", "error"}

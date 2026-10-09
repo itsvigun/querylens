@@ -15,8 +15,8 @@ calling, bounded LangGraph orchestration and a [web UI](ui.md) served by FastAPI
 The browser displays questions, answers, SQL/results, sources, errors, the demo
 reference date and the synthetic label. Stage 7 adds twenty synthetic evaluation
 cases, sanitized request summaries and GitHub Actions. See
-[verification.md](verification.md#stage-7) for actual checks. Deployment is next;
-no demo is deployed yet.
+[verification.md](verification.md#stage-7) for actual checks. Stage 8 preparation adds Railway configuration, explicit setup jobs and shared
+PostgreSQL admission controls; [public deployment](deployment.md) is not verified yet.
 
 ## Request and data flow
 
@@ -61,9 +61,11 @@ The backend inserts actual SQL-cell values into final facts and validates source
 IDs. This establishes provenance, not semantic correctness of SQL, labels or prose.
 Segment contributions do not establish causality. Deadlines are cooperative;
 returned-byte limits are not database memory/work limits. Per-process concurrency
-is not a shared deployment rate or spending limit. The evaluation suite has explicit scripted/stub and live modes; the stage 7
-baseline does not establish semantic model accuracy. Deployment controls belong
-to the next milestone.
+is supplemented in public mode by a PostgreSQL gate shared across workers: fixed
+minute request limits, durable active leases and conservative monthly cost reservations.
+Unknown usage never refunds a reservation; crashes require explicit recovery.
+The evaluation suite has explicit scripted/stub and live modes; the stage 7 baseline
+does not establish semantic model accuracy. See [deployment controls](deployment.md).
 
 ## Module map
 
@@ -76,6 +78,8 @@ to the next milestone.
 | [`app/tools/`](../app/tools) | Reviewed schema, AST policy, bounded SQL execution, validated dispatch |
 | [`app/rag/`](../app/rag) | Markdown chunking, embeddings, versioned indexes, atomic ingestion and retrieval |
 | [`app/llm/`](../app/llm) | Responses adapter, prompt/contracts, per-question graph and answer grounding |
+| [`app/demo_gate.py`](../app/demo_gate.py), [`app/db/operations.py`](../app/db/operations.py) | Public admission policy, global rate/concurrency and durable budget reservations |
+| [`railway.toml`](../railway.toml), [`deploy/`](../deploy) | API and explicit job configuration; no service provisioning or secrets |
 | [`app/observability.py`](../app/observability.py) | Allowlisted JSON summaries and request ID context |
 | [`evals/`](../evals) | Versioned synthetic questions, scripted provider and value/source graders |
 | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | Offline, PostgreSQL and browser CI with an evaluation artifact |

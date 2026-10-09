@@ -5,12 +5,16 @@ definitions, uses OpenAI tool calls to execute validated read-only SQL, and retu
 answers with queries, results and sources.
 
 **Status:** stage 7 complete — web UI, bounded LangGraph, offline synthetic evaluation,
-structured logs and CI.
+structured logs and CI. Stage 8 deployment preparation is in progress; no public demo yet.
 The demo uses EUR and a fixed reference date of **2026-10-01 UTC**.
 [Verification evidence](docs/verification.md#stage-7).
 
 **Stack:** Python 3.14, FastAPI, PostgreSQL/pgvector, SQLAlchemy, Alembic,
 OpenAI Responses, LangGraph, uv and Docker Compose.
+
+![QueryLens browser interface](docs/images/querylens-ui.png)
+
+*Local UI initial state; no model answer is shown.*
 
 ## Quickstart
 
@@ -24,7 +28,7 @@ cp .env.example .env
 
 Set distinct local passwords of at least 16 characters for `POSTGRES_PASSWORD`,
 `ANALYTICS_READONLY_PASSWORD`, `KNOWLEDGE_WRITER_PASSWORD` and
-`KNOWLEDGE_READONLY_PASSWORD` in `.env`. Add `OPENAI_API_KEY` to enable real chat;
+`KNOWLEDGE_READONLY_PASSWORD` and `DEMO_CONTROL_PASSWORD` in `.env`. Add `OPENAI_API_KEY` to enable real chat;
 startup, health and offline tests need no key.
 
 ```bash
@@ -57,6 +61,7 @@ the database volume is preserved.
 - [Architecture](docs/architecture.md) · [Data and metrics](docs/data.md)
 - [SQL tool](docs/sql-tool.md) · [Retrieval](docs/retrieval.md) · [Chat and LangGraph](docs/chat.md)
 - [Web UI](docs/ui.md) · [Evaluation](docs/evaluation.md) · [Observability](docs/observability.md)
+- [Deployment](docs/deployment.md)
 - [Testing](docs/testing.md) · [CI](docs/ci.md) · [Verification record](docs/verification.md)
 
 Working rules: [AGENTS.md](AGENTS.md). Business definitions: [knowledge/](knowledge).

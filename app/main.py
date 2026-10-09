@@ -9,26 +9,56 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
+from app.api.body_limit import ChatBodyLimitMiddleware
 from app.api.chat import router as chat_router
 from app.api.demo import router as demo_router
 from app.api.health import router as health_router
 from app.api.ui import UI_DIRECTORY
 from app.api.ui import router as ui_router
-from app.config import Settings
+from app.config import (
+    DemoControlSettings,
+    EmbeddingSettings,
+    LLMSettings,
+    PublicDemoSettings,
+    Settings,
+)
 from app.db.connection import create_database_engine, migration_heads
+from app.demo_gate import DemoGate, DemoPolicy
 from app.observability import REQUEST_ID, log_request
 
 
-def create_app(settings: Settings | None = None) -> FastAPI:
+def create_app(
+    settings: Settings | None = None, *, demo_settings: PublicDemoSettings | None = None
+) -> FastAPI:
     @asynccontextmanager
     async def lifespan(application: FastAPI) -> AsyncIterator[None]:
-        application.state.engine = create_database_engine(settings or Settings())
+        demo = demo_settings if demo_settings is not None else PublicDemoSettings()
+        runtime = (
+            settings
+            if settings is not None
+            else (DemoControlSettings() if demo.public_demo_enabled else Settings())
+        )
+        application.state.engine = create_database_engine(runtime)
+        application.state.demo_gate = None
+        application.state.demo_engine = None
+        if demo.public_demo_enabled:
+            application.state.llm_settings = LLMSettings()
+            application.state.embedding_settings = EmbeddingSettings()
+            application.state.demo_engine = create_database_engine(DemoControlSettings())
+            application.state.demo_gate = DemoGate(
+                application.state.demo_engine,
+                DemoPolicy.from_settings(
+                    demo, application.state.llm_settings, application.state.embedding_settings
+                ),
+            )
         application.state.chat_lock = BoundedSemaphore(1)
         try:
             application.state.migration_heads = migration_heads()
             yield
         finally:
             application.state.engine.dispose()
+            if application.state.demo_engine is not None:
+                application.state.demo_engine.dispose()
 
     application = FastAPI(
         title="QueryLens",
@@ -43,6 +73,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     application.include_router(chat_router)
     application.include_router(ui_router)
     application.mount("/assets", StaticFiles(directory=UI_DIRECTORY / "assets"), name="assets")
+    application.add_middleware(ChatBodyLimitMiddleware)
 
     @application.middleware("http")
     async def observe_chat(request, call_next):
@@ -65,6 +96,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     "category": {
                         422: "invalid_request",
                         429: "busy",
+                        413: "request_too_large",
                     }.get(response.status_code, "request_failed")
                 },
             }

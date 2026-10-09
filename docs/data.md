@@ -43,10 +43,11 @@ cluster without adapting the administration process.
 
 | Role | Purpose and permissions |
 |---|---|
-| Local owner (`POSTGRES_USER`) | Migrations, provisioning, seed, and current health checks |
+| Local owner (`POSTGRES_USER`) | Migrations, provisioning, seed and local health checks |
 | querylens_analytics_ro | SELECT on the four analytics tables; no writes, DDL, temp tables, or knowledge access |
 | querylens_knowledge_writer | Read/write on knowledge tables created by the migration owner; no analytics access or schema CREATE |
 | querylens_knowledge_ro | SELECT on knowledge tables; no analytics, writes, DDL, or sequences |
+| querylens_demo_control | Public readiness/migration version and admission ledger; cannot read analytics/knowledge or change policy |
 
 The reader has PostgreSQL defaults for read-only transactions, a 5-second statement
 timeout, a 1-second lock timeout, and UTC. These defaults can be changed by a
@@ -85,3 +86,9 @@ The seed deliberately includes a Germany purchase decline and churn differences
 between plans. These scenarios support correctness checks; they do not establish
 causal explanations. Conversion requires an explicit observation window; the
 30-day September cohort is not fully observed and yields an undefined rate.
+
+The optional fourth role is provisioned when `DEMO_CONTROL_PASSWORD` is supplied.
+It has SELECT on policy, SELECT/INSERT/UPDATE on monthly counters and
+SELECT/INSERT/DELETE on leases, with no elevated attributes/memberships/ownership.
+Policy configuration uses the administrator. Analytics/knowledge roles cannot
+access the operations schema. See [deployment](deployment.md).

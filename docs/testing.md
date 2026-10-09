@@ -117,3 +117,21 @@ or a single live question as general accuracy or performance evidence.
 When verifying a fresh setup, follow [setup.md](setup.md) in an isolated source
 copy with a new dedicated database and temporary secrets. Remove only that
 verification environment when finished; preserve the main dataset and default index.
+
+## Public deployment preparation
+
+After migration `0004_demo_controls` and provisioning the demo role:
+
+```bash
+uv run --locked pytest tests/test_demo_gate.py -q
+QUERYLENS_INTEGRATION=1 uv run --locked pytest tests/test_demo_gate_integration.py -q
+```
+
+The integration fixture requires an **unused operations ledger** on the dedicated
+local test DB and refuses a populated ledger before deleting anything. It never
+clears a live/public ledger. Tests exercise atomic race admission, durable charges
+and crash leases, fixed-minute limits, monthly rollover, policy changes, denied
+permissions and zero-budget public HTTP without paid calls. Browser fixtures
+exercise specific public limit messages with no automatic retries. Follow the
+separate [deployment acceptance](deployment.md#backups-and-deployment-acceptance)
+on a real URL before marking hosting complete.

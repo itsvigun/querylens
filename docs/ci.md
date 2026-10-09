@@ -11,7 +11,7 @@ uv 0.12.23, Python 3.14.8, the dependency lock and the existing pgvector image.
 |---|---|
 | `offline` | Locked install/lock check, Ruff lint/format, JavaScript syntax, offline tests |
 | `postgres` | Fresh PostgreSQL/pgvector service, migrations, roles, deterministic seed, control values, schema drift, integration tests and twenty-case offline evaluation |
-| `browser` | Optional browser dependency group, pinned Playwright Chromium installation, eighteen browser tests with labeled offline answers |
+| `browser` | Optional browser dependency group, pinned Playwright Chromium installation, browser tests with labeled offline answers, including public limit messages |
 
 The PostgreSQL service is isolated per job. Its checked-in CI passwords are public
 **disposable test credentials** for that service, not account or deployment
