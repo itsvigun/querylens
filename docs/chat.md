@@ -30,6 +30,16 @@ demo reference date and truncation warnings. Reference checks establish value
 provenance; they do not prove that SQL, fact labels or prose correctly interpret a
 question. Broader semantic evaluation belongs to the evaluation milestone.
 
+Example buttons are suggestions, not a question whitelist. Database overview
+questions are also supported by the prompt: retrieve entity definitions/schema,
+then query row counts and timestamp bounds across the full available dataset
+unless a period was requested. Return counts/dates as SQL-cell facts and describe
+entities/relationships in prose. A missing period is not ambiguous for this
+overview. The same answer validator still rejects an `answered` result without
+successful SQL and retrieved sources; prompt guidance does not guarantee that
+every model response satisfies this contract. The hosted overview regression
+still needs live verification after the fix is deployed.
+
 After migrations, role provisioning, seed and **real ingestion**:
 
 Open the [web UI](http://127.0.0.1:8000/) to ask through the browser, or use the CLI:

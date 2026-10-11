@@ -51,6 +51,11 @@ const errors = {
   network_error: "Could not reach the server. Check the connection before trying again; the server may still be processing the question.",
   browser_timeout: "The browser stopped waiting. The server may still be processing the question; wait before trying again.",
   invalid_response: "The server returned an unexpected response. Check the server and try again.",
+  ungrounded_answer: "The answer could not be verified against executed SQL and documentation, so it was not displayed.",
+  unreferenced_numbers: "The answer included numbers that could not be verified against query results, so it was not displayed.",
+  unknown_source: "The answer cited documentation that was not retrieved, so it was not displayed.",
+  invalid_fact_reference: "The answer referred to unavailable query results, so it was not displayed.",
+  invalid_answer: "The model returned an answer that could not be validated, so it was not displayed.",
 };
 
 function node(tag, text, className) {
@@ -62,7 +67,7 @@ function node(tag, text, className) {
 }
 
 function errorMessage(category) {
-  return Object.hasOwn(errors, category) ? errors[category] : "The request could not be completed. Try rephrasing your question.";
+  return Object.hasOwn(errors, category) ? errors[category] : "The request could not be completed. Open Run details for more information.";
 }
 
 function notice(messages, kind = "") {
@@ -215,6 +220,10 @@ function renderRun(data) {
   if (Number.isFinite(data.usage?.output_tokens)) pieces.push(`${data.usage.output_tokens} output tokens`);
   if (data.usage?.usage_complete === false) pieces.push("Usage incomplete");
   details.append(node("p", pieces.join(" · ") || "No usage details returned.", "run-meta"));
+  if (data.status === "error") {
+    const category = Object.hasOwn(errors, data.error?.category) ? data.error.category : "request_failed";
+    details.append(node("p", `Error category: ${category}`, "run-meta"));
+  }
   if (data.demo_reference_date) details.append(node("p", `Answer reference date: ${data.demo_reference_date} · ${data.dataset_version || ""}`, "run-meta"));
   const trace = node("ul", undefined, "trace");
   (data.trace || []).forEach(entry => trace.append(node("li", `${entry.tool} · ${entry.status} · ${entry.duration_ms} ms`)));
@@ -254,7 +263,7 @@ function renderAnswer(data, asked) {
   if (notes.length) fragment.append(notice(notes));
   if (data.queries?.length) fragment.append(renderQueries(data.queries));
   if (data.sources?.length) fragment.append(renderSources(data.sources));
-  if (data.usage || data.trace?.length) fragment.append(renderRun(data));
+  if (data.status === "error" || data.usage || data.trace?.length) fragment.append(renderRun(data));
   content.replaceChildren(fragment);
   badge.textContent = statusLabels[data.status];
   badge.dataset.status = data.status;

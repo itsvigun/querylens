@@ -16,7 +16,9 @@ The browser displays questions, answers, SQL/results, sources, errors, the demo
 reference date and the synthetic label. Stage 7 adds twenty synthetic evaluation
 cases, sanitized request summaries and GitHub Actions. See
 [verification.md](verification.md#stage-7) for actual checks. Stage 8 preparation adds Railway configuration, explicit setup jobs and shared
-PostgreSQL admission controls; [public deployment](deployment.md) is not verified yet.
+PostgreSQL admission controls. The Railway UI, Swagger, dataset metadata and DB
+readiness are publicly verified, and live ingestion stored 25 knowledge chunks.
+Full live AI [deployment acceptance](deployment.md) remains pending.
 
 ## Request and data flow
 

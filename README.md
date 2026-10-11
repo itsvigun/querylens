@@ -5,9 +5,14 @@ definitions, uses OpenAI tool calls to execute validated read-only SQL, and retu
 answers with queries, results and sources.
 
 **Status:** stage 7 complete — web UI, bounded LangGraph, offline synthetic evaluation,
-structured logs and CI. Stage 8 deployment preparation is in progress; no public demo yet.
+structured logs and CI. Stage 8 has a verified public UI/API foundation and live
+knowledge ingestion on Railway; live AI deployment acceptance remains pending.
 The demo uses EUR and a fixed reference date of **2026-10-01 UTC**.
 [Verification evidence](docs/verification.md#stage-7).
+
+[Hosted UI](https://querylens-production-f241.up.railway.app/) ·
+[API documentation](https://querylens-production-f241.up.railway.app/docs).
+Public AI chat verification is not complete.
 
 **Stack:** Python 3.14, FastAPI, PostgreSQL/pgvector, SQLAlchemy, Alembic,
 OpenAI Responses, LangGraph, uv and Docker Compose.

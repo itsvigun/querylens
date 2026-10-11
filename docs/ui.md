@@ -11,7 +11,7 @@ an example makes no provider call. The Ask button submits one `POST /api/chat`.
 ## Using the workspace
 
 1. Read the visible synthetic label, UTC reference date, dataset version and currency.
-2. Enter a metric and period, or select an example to fill the question field.
+2. Ask about the dataset, enter a metric and period, or select an example to fill the question field.
 3. Click **Ask QueryLens** (or press Ctrl/Cmd+Enter). The form disables while waiting.
 4. Inspect the answer facts, SQL/result tables, source citations and expanded source text.
    **Run details** exposes returned timing, model/token usage and tool trace.
@@ -25,6 +25,9 @@ and does not guarantee cancellation of server work. Failures never auto-retry.
 
 Answers, clarification, unsupported questions and missing context have distinct
 states. Provider/configuration/index failures and HTTP errors show fixed guidance.
+Rejected answer provenance has specific messages rather than advice to rephrase
+the question. Error results always include **Run details**, which shows a fixed
+recognized error category; unknown categories are replaced with `request_failed`.
 Previous results disappear when a new request starts, so failed requests cannot
 leave a stale answer presented as their result. Failed SQL attempts, warnings,
 limitations and truncation are shown when returned. Empty tables say **No rows

@@ -263,6 +263,11 @@ def test_busy_http_error_and_recovery(ui):
         ("index_missing", "The knowledge index is missing."),
         ("deadline_exceeded", "The question reached its time limit."),
         ("sql_retry_budget_exhausted", "The SQL could not be corrected"),
+        ("ungrounded_answer", "The answer could not be verified against executed SQL"),
+        ("unreferenced_numbers", "The answer included numbers that could not be verified"),
+        ("unknown_source", "The answer cited documentation that was not retrieved"),
+        ("invalid_fact_reference", "The answer referred to unavailable query results"),
+        ("invalid_answer", "The model returned an answer that could not be validated"),
     ],
 )
 def test_backend_failure_removes_stale_answer(ui, category, message):
@@ -276,6 +281,9 @@ def test_backend_failure_removes_stale_answer(ui, category, message):
     expect(page.get_by_text(message, exact=False)).to_be_visible()
     expect(page.locator(".fact")).to_have_count(0)
     expect(page.get_by_role("button", name="Ask QueryLens")).to_be_enabled()
+    page.get_by_text("Run details", exact=True).click()
+    expect(page.get_by_text(f"Error category: {category}", exact=True)).to_be_visible()
+    assert "Try rephrasing your question" not in page.locator("#answer-content").inner_text()
 
 
 @pytest.mark.parametrize("failure", ["network", "bad_json", "bad_status", "http_500"])
@@ -300,6 +308,21 @@ def test_transport_failures_are_safe_and_retry_is_manual(ui, failure):
     expect(page.get_by_role("button", name="Ask QueryLens")).to_be_enabled()
     assert "private-error-marker" not in page.locator("#answer-content").inner_text()
     assert state["calls"] == []
+
+
+def test_unknown_failure_category_is_not_displayed(ui):
+    from playwright.sync_api import expect
+
+    page, state, _ = ui
+    state["answer"] = {"status": "error", "error": {"category": INJECTION}}
+    ask(page)
+    expect(page.get_by_text("Open Run details for more information.", exact=False)).to_be_visible()
+    page.get_by_text("Run details", exact=True).click()
+    expect(page.get_by_text("Error category: request_failed", exact=True)).to_be_visible()
+    assert INJECTION not in page.locator("#answer-content").inner_text()
+    assert page.locator("#answer-content img, #answer-content script").count() == 0
+    assert page.evaluate("window.injected") is None
+    assert len(state["calls"]) == 1
 
 
 def test_wait_timeout_does_not_automatically_retry(ui):

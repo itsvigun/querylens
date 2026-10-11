@@ -408,3 +408,151 @@ Docker API was rebuilt with the final public busy-response change and is healthy
 UI/assets/demo/health/OpenAPI returned 200, malformed chat 422 and oversized body
 413 with generated IDs. A scan of 38 changed/new files found no matches for actual
 local secret values; 148 repository documentation link paths resolved.
+
+## Railway dashboard inspection — 2026-10-11
+
+Read-only inspection found the initial API startup failure
+`Railway requires public demo controls`. A later deployment showed Online/Active,
+but no public domain or configured readiness healthcheck. The service settings
+reported that new services cannot opt into Config as Code; the deployment guide
+now gives explicit dashboard settings rather than assuming the TOML files apply.
+This restriction was also verified against Railway's official documentation.
+
+The user subsequently created `db` and reported a new volume. The inspected UI
+showed `pgvector-volume`, the three PostgreSQL variable names, and changes still
+being deployed. This does not verify database readiness, migrations, roles, seed,
+knowledge ingestion or a public URL. No secrets were revealed, remote settings
+changed, setup job executed, or paid provider calls made by the agent. Only
+documentation changed; application tests were not rerun for these edits.
+
+Opening the new database deployment logs then revealed repeated `initdb` failures:
+the mounted `/var/lib/postgresql/data` contains `lost+found`. An Online badge
+appeared during restart attempts and did not establish database readiness. The
+guide now requires `PGDATA=/var/lib/postgresql/data/pgdata` for a fresh volume.
+The hosted fix has not been applied or verified by the agent; setup remains pending.
+
+Later on 2026-10-11 the user supplied PostgreSQL's `ready to accept connections`
+line. Read-only inspection then showed `db` Online and a Completed setup deployment
+with all five `migrate`, `provision`, `seed`, `verify`, `policy` steps reporting
+`ok`. This establishes the hosted foundation job passed. The original API service
+had been repurposed as `setup`; the canvas showed only `setup` and `db`, so a
+separate API service still needs configuration and readiness verification. The
+guide now provides scoped API references to the matching role passwords. Public
+HTTPS, knowledge ingestion, restarts, backups and paid answer acceptance remain
+pending. The agent only inspected the UI and changed local documentation.
+
+The separate `querylens` API deployment was then inspected as Active/successful.
+Its deployment details showed `python -m scripts.serve` and `/health/ready`;
+startup logs confirmed Uvicorn listening on port 8080. This is foundation
+deployment evidence, not a direct public HTTP response or AI acceptance. The
+effective retry count is ten, not the recommended three; no agent setting change
+was made. The service remains unexposed.
+
+Local `uv run --locked python -m scripts.ingest --dry-run` passed with 25 chunks,
+15942 bytes and the unchanged corpus hash. The official small embedding model
+price was reviewed on 2026-10-11 at $0.02 per million input tokens. With the
+existing 250000-byte attempted-input cap, the conservative model-cost bound for
+one ingestion execution is $0.005 excluding taxes/other callers. A separate
+$0.01 ingestion allowance was requested; no paid call or hosted ingestion was
+executed by the agent. The deployment guide contains the reviewed scoped job
+configuration and a dry-run command while that allowance is pending.
+
+## Public UI/API foundation smoke — 2026-10-11
+
+The user generated and supplied
+`https://querylens-production-f241.up.railway.app/docs`. Direct HTTPS GET checks
+returned 200 for `/docs`, `/openapi.json`, `/`, `/health/live`, `/health/ready` and
+`/demo`. Swagger HTML contains its UI bundle; OpenAPI identifies QueryLens and
+the four expected API paths. Readiness returned `status: ready` with `database`,
+`migrations` and `pgvector` all true. Demo metadata matches synthetic-v1,
+2026-10-01 UTC and EUR. All three same-origin UI assets (`app.css`, `app.js`,
+`icon.svg`) also returned 200. The UI HTML was checked; this smoke did not run
+browser interactions or claim deployed AI answer quality.
+
+The public URL is now recorded in the root README and context/deployment guides.
+Public exposure precedes ingestion to satisfy the user's request to view the
+page first; it does not complete stage 8. No chat POST, ingestion or provider call
+was made. Separate ingestion/public-chat allowances, hosted real index, bounded
+live answers, restart persistence and backup restore verification remain pending.
+
+## Hosted knowledge ingestion — 2026-10-11
+
+The user executed the separate Railway ingestion job. Read-only browser inspection
+of its Completed deployment logs confirmed `status: indexed` at 19:34 GMT+2:
+
+- Index `default`: 25 chunks, 25 embedded, 0 reused and 0 removed.
+- Provider `openai`, model `text-embedding-3-small`, dimensions 1536.
+- Two embedding requests reported 3362 prompt tokens.
+- Corpus SHA-256:
+  `575c62529847786fdb4875e155b03773b49e75713e89ec2660b2f2675b1af653`,
+  matching the local corpus.
+
+This establishes hosted live ingestion, not semantic retrieval or deployed chat
+acceptance. The agent did not rerun ingestion, enter/reveal keys or make paid
+provider calls. Public-chat budget selection and API key configuration are next;
+hosted live answers, restart persistence and backup recovery remain pending.
+
+## Hosted public-chat allocation — 2026-10-11
+
+The author explicitly approved $1/month for the public chat. Railway CLI 5.64.2
+was linked to the expected project/production environment. Before mutation,
+API/setup settings and the stored policy matched the zero allocation, and there
+were no active leases. The API had no OpenAI key.
+
+The API deployment was stopped, then `PUBLIC_CHAT_MONTHLY_BUDGET_USD=1` was set
+on API and setup with automatic deployment suppressed. An explicit administrator
+operation called the existing `scripts.demo_policy.configure` through a local
+SSH tunnel to the private DB, using scoped owner credentials held only in memory.
+No owner credentials were added to the API. The updated fingerprints matched;
+monthly/rate records and leases were unchanged. The default request reservation
+remains 114320 micro-USD, allowing at most eight questions per UTC calendar month.
+
+The automatic `railway connect --tunnel-only` path exited unsuccessfully before
+any mutation; direct SSH forwarding worked. Removing the API deployment left
+`latestDeployment` null, requiring the administration helper to handle that
+state before continuing. Redeployment from the GitHub source used the same
+commit `046f7863310492c29874779cfdda84a3775cdada`.
+
+Deployment `827db590-06ca-4a7a-a9c8-9bacb440b86f` reached SUCCESS. Public
+`/health/ready` returned 200, `status: ready`, and all three checks true. A
+read-only check inside the new API container confirmed monthly USD 1, matching
+DB policy, zero leases and no monthly charge records. The API key remains absent;
+no chat POST/provider call was made. Current model prices were rechecked against
+the official [mini model](https://developers.openai.com/api/docs/models/gpt-5.4-mini)
+and [embedding model](https://developers.openai.com/api/docs/models/text-embedding-3-small)
+pages and match the versioned policy. Hosted AI answer acceptance remains pending.
+
+## Database overview diagnosis and local fix — 2026-10-11
+
+After the author added the API key and redeployed, Railway deployment
+`b78070a8-774d-46d5-b6e3-ce27acd54dd9` was SUCCESS on commit `046f786`.
+Read-only sanitized request summaries showed three `ungrounded_answer` failures
+with two tool calls and zero SQL attempts, alongside one `answered` request with
+three tool calls and one SQL attempt. Logs omit question text, so this establishes
+the observed failure pattern rather than matching a particular screenshot by
+its question. Inspection of `resolve_answer` confirmed that an answered result
+requires schema, retrieved sources and successful SQL. Overview responses after
+only the context tools are rejected by that contract.
+
+The local prompt now explicitly supports full-dataset overviews without a metric
+or period, requesting SQL row counts/time bounds with referenced facts. Answer
+validation, SQL permissions, workflow budgets and public policy are unchanged.
+The UI now explains provenance failures and always offers Run details for errors;
+it displays only recognized categories and hides unknown category payloads. The
+input hint also permits dataset questions.
+
+Checks completed:
+
+- Ruff lint/format checks for the changed Python files and `git diff --check`.
+- `uv run --locked pytest tests/test_llm.py tests/test_workflow.py tests/test_ui.py -q`:
+  63 passed.
+- `QUERYLENS_BROWSER=1 uv run --locked --group browser pytest tests/test_ui_browser.py -q`:
+  26 passed after the grounding-message changes.
+- After adding the unknown-category regression and changing the input hint,
+  the focused browser run with `-k 'unknown_failure_category or answer_evidence_precision'`
+  passed all three cases (24 deselected), including desktop/mobile rendering.
+
+These checks use offline providers/browser fixtures and do not prove semantic
+model compliance with the revised prompt. The local fix has not been committed,
+pushed or deployed, and no paid provider call was made by the agent. Hosted
+overview acceptance must be checked after deployment within an explicit allowance.

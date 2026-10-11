@@ -2,10 +2,27 @@
 
 [Documentation index](README.md)
 
-Stage 8 preparation targets **Railway**. No public deployment or demo URL has
-been verified yet. Hosting, account access and paid-test/public-chat budgets must
-be selected before provisioning paid resources. The repository configuration is
-reviewable independently of an account; see [verification](verification.md).
+Stage 8 targets **Railway**. The public UI/API foundation is verified at
+[querylens-production-f241.up.railway.app](https://querylens-production-f241.up.railway.app/),
+with [Swagger documentation](https://querylens-production-f241.up.railway.app/docs).
+Live knowledge ingestion has stored 25 chunks using `text-embedding-3-small`
+(1536 dimensions). Live AI answers, hosted restart persistence and backup
+recovery remain pending. Additional paid jobs/public-chat budgets require an
+explicit allowance. See [verification](verification.md) for completed checks.
+
+The author approved a shared $1/month public-chat allocation on 2026-10-11.
+It is configured on API/setup and in the database policy. At the current default
+reservation, it admits at most eight questions per UTC calendar month across
+all visitors. The author subsequently added the API's OpenAI key and redeployed;
+adding that key alone does not change the policy fingerprint. Railway usage and explicit CLI/ingestion jobs
+are outside this allocation.
+
+As verified on 2026-10-11, Railway no longer allows new services to opt into
+Config as Code. Existing users of `railway.toml` / `railway.json` retain support
+only until 2026-12-01. The TOML files in this repository are legacy references,
+not an applied configuration for the new deployment. Use the dashboard settings
+below; a future IaC migration must be reviewed separately before applying it.
+[Current Config as Code status](https://docs.railway.com/config-as-code).
 
 ## Services and boundaries
 
@@ -30,11 +47,70 @@ with a 150-second Railway drain setting. These are cooperative process controls.
 Railway's standard PostgreSQL image does **not** include pgvector. Use the exact
 `pgvector/pgvector:0.8.6-pg17-bookworm` image as a dedicated database service and
 mount a volume at `/var/lib/postgresql/data`. Do not enable a public TCP proxy.
+For a fresh Railway volume, set `PGDATA=/var/lib/postgresql/data/pgdata` on `db`.
+The filesystem root may contain `lost+found`; PostgreSQL initialization needs an
+empty data directory, so use this subdirectory inside the persistent mount.
+Do not change `PGDATA` on an already initialized database without a data migration.
 API/jobs connect to `db.railway.internal:5432`. This is a custom database service;
 we must manage database maintenance, backups and restore verification.
 [Database services](https://docs.railway.com/databases/build-a-database-service),
 [pgvector support](https://docs.railway.com/databases/postgresql),
 [private networking](https://docs.railway.com/networking/private-networking).
+
+## Inspect the hosted database
+
+Install the current Railway CLI (`brew install railway` on macOS), run
+`railway login`, then `railway link` from the repository root and select the
+existing project and production environment. Open the running database container:
+
+```bash
+railway ssh --service db --environment production
+```
+
+The CLI prompts for SSH key registration if needed. Inside that container,
+the PostgreSQL client is available. Use the analytics reader for data inspection:
+
+```bash
+psql -h 127.0.0.1 -p 5432 -U querylens_analytics_ro -d "$POSTGRES_DB" -W
+```
+
+Enter the hosted `ANALYTICS_READONLY_PASSWORD` from `setup` Variables at the
+password prompt; do not put it in a command or share terminal output containing
+secrets. In `psql`, `\dt analytics.*` lists tables and
+`SELECT * FROM analytics.orders LIMIT 10;` previews orders. Exit with `\q`.
+For chunks, reconnect as `querylens_knowledge_ro` using the hosted
+`KNOWLEDGE_READONLY_PASSWORD`, then run:
+
+```sql
+SELECT source_path, heading, ordinal, content
+FROM knowledge.chunks
+WHERE index_name = 'default'
+ORDER BY source_path, ordinal;
+```
+
+For a GUI client, run this on the laptop and keep it open:
+
+```bash
+railway connect db --environment production --tunnel-only --port 15432
+```
+
+Connect the GUI to `127.0.0.1:15432`, the database name from `db.POSTGRES_DB`,
+and the desired reader credentials. The CLI prints connection details including
+secrets: keep that output private. The tunnel ends with Ctrl+C. These commands
+were reviewed against current documentation, not executed against the hosted DB.
+If `connect` cannot handle the custom database service, use the SSH config path:
+
+```bash
+railway ssh config --service db --environment production --alias querylens-db
+ssh -N -L 127.0.0.1:15432:127.0.0.1:5432 querylens-db
+```
+
+This forwards the same database port. A direct SSH tunnel was successfully used
+for policy administration on 2026-10-11 after `connect --tunnel-only` exited
+unsuccessfully; no public TCP endpoint was created.
+[Railway SSH](https://docs.railway.com/cli/ssh),
+[database tunnels](https://docs.railway.com/cli/connect),
+[CLI installation](https://docs.railway.com/cli).
 
 ## Account and cost decisions
 
@@ -56,16 +132,23 @@ allowances. Review the dated model prices before enabling paid public traffic.
 ## Create the services
 
 1. Create a Railway project with an API service sourced from this repository.
-   Use [`railway.toml`](../railway.toml), the Dockerfile builder, one replica and
-   `/health/ready`. Disable serverless sleeping if always-on access is required.
+   In Settings, select the Dockerfile builder and set Start Command to
+   `python -m scripts.serve`. Use one replica, Healthcheck Path `/health/ready`
+   with a 120-second timeout, and On Failure restart policy with three retries.
+   Set the drain period to 150 seconds where supported. Disable serverless
+   sleeping if always-on access is required. Confirm effective settings instead
+   of assuming [`railway.toml`](../railway.toml) is read.
 2. Create a `db` service from the pinned image above with its persistent volume.
-   Set `POSTGRES_USER`, `POSTGRES_DB` and a generated `POSTGRES_PASSWORD` there.
+   Set `POSTGRES_USER`, `POSTGRES_DB`, a generated `POSTGRES_PASSWORD`, and
+   `PGDATA=/var/lib/postgresql/data/pgdata` there.
    Verify the volume mount before allowing data jobs to run.
-3. Create a temporary setup service from the same source, with Config File path
-   `/deploy/railway-jobs.toml`. It runs [`scripts.deploy_setup`](../scripts/deploy_setup.py)
-   once, has no domain/healthcheck, and uses `restartPolicyType=NEVER`. Disable
+3. Create a temporary `setup` service from the same GitHub repository. In Settings,
+   use the Dockerfile builder, set Start Command to `python -m scripts.deploy_setup`,
+   and select Never for Restart Policy. It runs
+   [`scripts.deploy_setup`](../scripts/deploy_setup.py) once, has no domain/healthcheck.
+   [`deploy/railway-jobs.toml`](../deploy/railway-jobs.toml) is a legacy reference. Disable
    automatic GitHub deployments for jobs; run them only when explicitly needed.
-   [Configuration reference](https://docs.railway.com/config-as-code/reference).
+   [Start commands](https://docs.railway.com/deployments/start-command).
 4. Keep the API domain ungenerated until foundation/ingestion/limits are verified.
    Create the domain afterward; Railway provides automatic certificates.
    [Public HTTPS](https://docs.railway.com/networking/public-networking).
@@ -93,6 +176,41 @@ mode, readiness uses `querylens_demo_control`, which can read the migration
 version and operate only the admission ledger. Analytics and knowledge remain
 accessible only through their dedicated tools. Local Compose retains its admin
 health environment for development; use the service-specific production matrix.
+
+For `setup`, reference `POSTGRES_HOST=${{db.RAILWAY_PRIVATE_DOMAIN}}`,
+`POSTGRES_DB=${{db.POSTGRES_DB}}`, `POSTGRES_USER=${{db.POSTGRES_USER}}` and
+`POSTGRES_PASSWORD=${{db.POSTGRES_PASSWORD}}`, and set `POSTGRES_PORT=5432`.
+Generate four distinct role passwords of at least 16 characters for
+`ANALYTICS_READONLY_PASSWORD`, `KNOWLEDGE_WRITER_PASSWORD`,
+`KNOWLEDGE_READONLY_PASSWORD` and `DEMO_CONTROL_PASSWORD`; none may equal the owner
+password. Keep those values in Railway only. The later API and ingestion services
+must use the matching reader/control and writer passwords respectively.
+Do not copy the owner's user/password into the public API.
+
+After setup completes, configure a separate `querylens` API service from the
+same repository. If the initial API service was renamed/reconfigured to `setup`,
+create a new API service rather than exposing the administrator job. The following
+Railway references avoid copying secret values; retain `setup` with autodeploy
+disabled while other services reference its variables:
+
+```dotenv
+POSTGRES_HOST=${{db.RAILWAY_PRIVATE_DOMAIN}}
+POSTGRES_PORT=5432
+POSTGRES_DB=${{db.POSTGRES_DB}}
+ANALYTICS_READONLY_PASSWORD=${{setup.ANALYTICS_READONLY_PASSWORD}}
+KNOWLEDGE_READONLY_PASSWORD=${{setup.KNOWLEDGE_READONLY_PASSWORD}}
+DEMO_CONTROL_PASSWORD=${{setup.DEMO_CONTROL_PASSWORD}}
+PUBLIC_DEMO_ENABLED=true
+PUBLIC_CHAT_MONTHLY_BUDGET_USD=0
+```
+
+If `setup` will be deleted, transfer its role secrets to appropriately scoped
+variables and update all references first; deleting the source breaks references.
+The API does not need `POSTGRES_USER`, `POSTGRES_PASSWORD` or writer credentials.
+With the API start command and readiness healthcheck configured above, redeploy
+and require `/health/ready` to return `status: ready` with all three checks true.
+This checks the DB, migrations and vector extension, not knowledge ingestion or
+provider readiness; an OpenAI key is unnecessary for this foundation check.
 
 Set on the API and setup job:
 
@@ -147,8 +265,27 @@ Migrations/provisioning require the dedicated cluster's administrator.
 
 Run ingestion as a separate explicit job from the same built image, with only
 writer credentials, embedding settings and the server key. Only after agreeing on
-its paid allowance, create the service with Config File path
-`/deploy/railway-ingest.toml`, which runs ingestion once with no restart retries.
+its paid allowance, create the service with dashboard Start Command
+`python -m scripts.ingest`, Never restart policy, and no domain/healthcheck.
+[`deploy/railway-ingest.toml`](../deploy/railway-ingest.toml) is a legacy reference.
+Name the temporary service `ingest`, disable GitHub autodeploy, and configure:
+
+```dotenv
+POSTGRES_HOST=${{db.RAILWAY_PRIVATE_DOMAIN}}
+POSTGRES_PORT=5432
+POSTGRES_DB=${{db.POSTGRES_DB}}
+KNOWLEDGE_WRITER_PASSWORD=${{setup.KNOWLEDGE_WRITER_PASSWORD}}
+EMBEDDING_MODEL=text-embedding-3-small
+EMBEDDING_DIMENSIONS=1536
+EMBEDDING_INDEX_VERSION=v1
+KNOWLEDGE_INDEX_NAME=default
+```
+
+The real command additionally needs `OPENAI_API_KEY`, entered by the user into
+Railway Variables. It does not need owner, analytics reader or control credentials.
+While allowance/key entry is pending, the reviewable offline command is
+`python -m scripts.ingest --dry-run`; it does not connect to DB or OpenAI.
+Switch to the real ingestion command only after the explicit paid allowance.
 Use the image locally or a temporary dry-run job to inspect the corpus first:
 
 ```bash
@@ -168,9 +305,9 @@ To change public policy, pause/remove public access and stop/drain every API wor
 configure the new policy using the owner job with matching settings, then redeploy
 API workers. An old fingerprint fails closed instead of bypassing the new policy.
 For an individual remote admin command, use a temporary owner job with its own
-explicit config file/start command and no restart retries. Config-as-code commands
-override dashboard start commands; do not reuse the API/foundation config and
-expect a dashboard command to replace it. Remove the job/secrets afterward.
+explicit dashboard start command and no restart retries. For legacy services
+that already use Config as Code, file commands override dashboard commands;
+verify effective configuration before running any job. Remove the job/secrets afterward.
 Local commands for inspection/configuration:
 
 ```bash
