@@ -11,6 +11,7 @@ section of the verification record. All commands run from the repository root.
 | [Architecture and development context](architecture.md) | Implemented capabilities, design decisions, code map, limits and next milestone |
 | [Setup and operations](setup.md) | Docker, host development, migrations, health and enabling chat |
 | [Deployment](deployment.md) | Railway preparation, shared public limits, explicit jobs, backups and pending acceptance |
+| [Invitation access](access.md) | Named codes, browser sessions, quotas, owner CLI and usage audit |
 | [Configuration](configuration.md) | Environment variables, defaults, credentials and bounds |
 | [Data, metrics and roles](data.md) | Synthetic dataset, time anchor, seeding, PostgreSQL roles and reference values |
 | [Validated SQL tool](sql-tool.md) | CLI, AST policy, read-only execution, limits and result format |

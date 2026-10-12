@@ -1,5 +1,6 @@
 from decimal import Decimal
 from typing import Literal
+from urllib.parse import urlsplit
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -142,3 +143,48 @@ class DemoControlSettings(Settings):
         default="querylens_demo_control", validation_alias="DEMO_CONTROL_USER"
     )
     postgres_password: SecretStr = Field(min_length=16, validation_alias="DEMO_CONTROL_PASSWORD")
+
+
+class AccessSettings(BaseSettings):
+    """Invitation-only on Railway; local development can opt in explicitly."""
+
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore", hide_input_in_errors=True)
+
+    token_access_required: bool | None = None
+    access_public_origin: str | None = None
+    access_cookie_secure: bool = True
+    access_session_ttl_seconds: int = Field(default=28800, ge=300, le=86400)
+    railway_environment_id: str | None = None
+    railway_public_domain: str | None = None
+
+    @property
+    def required(self) -> bool:
+        return bool(self.railway_environment_id) or self.token_access_required is True
+
+    @property
+    def cookie_name(self) -> str:
+        return "__Host-querylens_session" if self.access_cookie_secure else "querylens_dev_session"
+
+    @model_validator(mode="after")
+    def validate_access(self):
+        if self.railway_environment_id and self.token_access_required is False:
+            raise ValueError("Railway requires invitation access")
+        if not self.required:
+            return self
+        if not self.access_public_origin and self.railway_public_domain:
+            self.access_public_origin = "https://" + self.railway_public_domain
+        origin = urlsplit(self.access_public_origin or "")
+        if (
+            origin.scheme not in {"http", "https"}
+            or not origin.hostname
+            or origin.username
+            or origin.password
+            or origin.path
+            or origin.query
+            or origin.fragment
+        ):
+            raise ValueError("Set an exact ACCESS_PUBLIC_ORIGIN without a path")
+        if origin.scheme != "https" or not self.access_cookie_secure:
+            if self.railway_environment_id or origin.hostname not in {"localhost", "127.0.0.1"}:
+                raise ValueError("Hosted access requires HTTPS and secure cookies")
+        return self

@@ -58,3 +58,29 @@ HTTP 413/429/503 paths retain generated request IDs and the single summary event
 The supplied Docker entrypoint is now `python -m scripts.serve`, which retains
 disabled access logs. Admission reservation accounting is separate from usage logs
 and invoices; see [deployment](deployment.md).
+
+## Invitation attribution and durable audit
+
+Authenticated HTTP chat summaries additionally contain a validated server-derived
+32-character `token_id` and boolean `audit_recorded`. Logs never include the
+invitation name/code, session credential, CSRF nonce or authentication headers.
+Successful login/logout and failed protected-route access have fixed-category
+`access_request` events. Successful metadata reads have no analytics event.
+Unknown/expired/revoked credentials do not establish an actor identity.
+
+The `operations.access_requests` table stores the same allowlisted usage summary,
+HTTP status and duration, with request/token IDs, timestamps, pricing version and
+reserved micro-USD. Admission creates a pending record atomically with both
+quotas; completion updates the summary. Authenticated pre-admission denials and
+invalid bodies get zero-reservation records. An audit write failure preserves a
+pending admission and produces `audit_recorded=false`; unavailable usage is not
+zero billing. Explicit stale-lease recovery marks pending records interrupted
+without refunding. The owner CLI joins token metadata with these records; there
+is no public history/admin endpoint. `first_used_at` and `last_used_at` track
+admitted questions. See [access.md](access.md) for reports and identity limits.
+
+Token error categories (`access_required`, `access_denied`, `access_unavailable`,
+`access_origin_denied`, `access_request_limit`, `access_budget_exhausted`,
+`access_rate_limit`, `access_session_limit`, `access_disabled`) and
+`request_interrupted` are fixed values. PostgreSQL audit is durable local storage;
+retention/backup/export remain owner responsibilities, not external tracking.

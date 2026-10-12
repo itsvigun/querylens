@@ -47,7 +47,7 @@ cluster without adapting the administration process.
 | querylens_analytics_ro | SELECT on the four analytics tables; no writes, DDL, temp tables, or knowledge access |
 | querylens_knowledge_writer | Read/write on knowledge tables created by the migration owner; no analytics access or schema CREATE |
 | querylens_knowledge_ro | SELECT on knowledge tables; no analytics, writes, DDL, or sequences |
-| querylens_demo_control | Public readiness/migration version and admission ledger; cannot read analytics/knowledge or change policy |
+| querylens_demo_control | Readiness/admission, invitation metadata, usage, sessions and audit; cannot read analytics/knowledge, issue/revoke invitations, change token limits or policy |
 
 The reader has PostgreSQL defaults for read-only transactions, a 5-second statement
 timeout, a 1-second lock timeout, and UTC. These defaults can be changed by a
@@ -92,3 +92,11 @@ It has SELECT on policy, SELECT/INSERT/UPDATE on monthly counters and
 SELECT/INSERT/DELETE on leases, with no elevated attributes/memberships/ownership.
 Policy configuration uses the administrator. Analytics/knowledge roles cannot
 access the operations schema. See [deployment](deployment.md).
+
+Migration `0005_invitation_access` adds `operations.access_tokens`, `access_usage`,
+`access_sessions` and `access_requests`. Token/session tables store digests rather
+than plaintext credentials. Re-run explicit provisioning after this migration:
+the control role gets token SELECT, usage SELECT/UPDATE, session SELECT/INSERT/DELETE,
+and request SELECT/INSERT with UPDATE only on summary/completion columns.
+Analytics/knowledge roles cannot read access records. The owner CLI alone changes
+invitation metadata and quotas. See [access.md](access.md).

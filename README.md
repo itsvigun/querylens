@@ -12,7 +12,8 @@ The demo uses EUR and a fixed reference date of **2026-10-01 UTC**.
 
 [Hosted UI](https://querylens-production-f241.up.railway.app/) ·
 [API documentation](https://querylens-production-f241.up.railway.app/docs).
-Public AI chat verification is not complete.
+Public AI chat verification is not complete. Named invitation codes, per-token
+quotas and usage audit are implemented locally; hosted rollout is pending.
 
 **Stack:** Python 3.14, FastAPI, PostgreSQL/pgvector, SQLAlchemy, Alembic,
 OpenAI Responses, LangGraph, uv and Docker Compose.
@@ -66,7 +67,7 @@ the database volume is preserved.
 - [Architecture](docs/architecture.md) · [Data and metrics](docs/data.md)
 - [SQL tool](docs/sql-tool.md) · [Retrieval](docs/retrieval.md) · [Chat and LangGraph](docs/chat.md)
 - [Web UI](docs/ui.md) · [Evaluation](docs/evaluation.md) · [Observability](docs/observability.md)
-- [Deployment](docs/deployment.md)
+- [Invitation access and owner commands](docs/access.md) · [Deployment](docs/deployment.md)
 - [Testing](docs/testing.md) · [CI](docs/ci.md) · [Verification record](docs/verification.md)
 
 Working rules: [AGENTS.md](AGENTS.md). Business definitions: [knowledge/](knowledge).

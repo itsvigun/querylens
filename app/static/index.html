@@ -13,21 +13,33 @@
   <a class="skip-link" href="#question">Skip to question</a>
   <header class="topbar">
     <a class="brand" href="/" aria-label="QueryLens home"><span class="brand-mark" aria-hidden="true">Q</span>QueryLens</a>
-    <nav aria-label="Main navigation"><span class="demo-badge">Synthetic demo</span><a href="/docs">API docs <span aria-hidden="true">↗</span></a></nav>
+    <nav aria-label="Main navigation"><span class="demo-badge">Synthetic demo</span><a id="api-docs-link" href="/docs" hidden>API docs <span aria-hidden="true">↗</span></a></nav>
   </header>
   <main>
     <section class="intro" aria-labelledby="page-title">
       <p class="eyebrow">ANALYTICS WORKSPACE</p>
       <h1 id="page-title">Your data.<br><span>A clearer answer.</span></h1>
       <p class="lede">Ask a business question. Explore the answer, the SQL behind it,<br class="desktop-break"> and the definitions that give it meaning.</p>
-      <div class="context-bar" aria-label="Demo context">
+      <div id="demo-context" class="context-bar" aria-label="Demo context" hidden>
         <span class="context-label">DEMO CONTEXT</span>
         <span id="reference-date">Loading reference date…</span>
         <span id="dataset-label"></span>
         <button id="retry-context" class="text-button" type="button" hidden>Reload context</button>
       </div>
     </section>
-    <div class="workspace">
+    <section id="access-panel" class="panel access-panel" aria-labelledby="access-heading">
+      <p class="eyebrow">INVITATION ACCESS</p>
+      <h2 id="access-heading">Try QueryLens</h2>
+      <p>Enter the access code shared with your invitation. No account is needed.</p>
+      <form id="access-form">
+        <label for="access-code">Access code</label>
+        <input id="access-code" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="80" required>
+        <p id="access-error" class="notice error" role="alert" hidden></p>
+        <button id="access-submit" class="primary-button" type="submit">Open workspace <span aria-hidden="true">↗</span></button>
+      </form>
+    </section>
+    <div id="access-status" class="context-bar" aria-live="polite" hidden><span id="access-remaining"></span><button id="access-logout" class="text-button" type="button">Sign out</button></div>
+    <div id="workspace" class="workspace" hidden>
       <section class="composer panel" aria-labelledby="ask-heading">
         <div class="section-heading"><span class="step-number">01</span><h2 id="ask-heading">Ask your data</h2></div>
         <form id="question-form">

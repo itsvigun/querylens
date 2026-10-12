@@ -19,3 +19,4 @@ dist
 .DS_Store
 QUERYLENS_PLAN.md
 artifacts
+.access-tokens

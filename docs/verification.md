@@ -556,3 +556,154 @@ These checks use offline providers/browser fixtures and do not prove semantic
 model compliance with the revised prompt. The local fix has not been committed,
 pushed or deployed, and no paid provider call was made by the agent. Hosted
 overview acceptance must be checked after deployment within an explicit allowance.
+
+## Invitation access — local acceptance, 2026-10-12
+
+Implemented named owner-issued invitations, hashed credentials and short browser
+sessions, strict cookie POST Origin/CSRF checks, Bearer API access, revocation and
+expiry, lifetime request/reservation quotas and fixed-minute rates. Token and
+shared global admission use the same PostgreSQL transaction/advisory lock.
+Owner-only administration has private-file secret output and metadata/usage reports.
+Runtime permissions separate token administration from sessions, usage and audit.
+
+Checks actually completed:
+
+- `uv run --locked ruff check .` and `ruff format --check .`: passed, 84 Python files formatted.
+- `node --check app/static/assets/app.js`, `uv lock --check`, `git diff --check`,
+  `docker compose config --quiet`: passed. Local documentation links and changed
+  files were checked for actual local secret values/literal invitation credentials;
+  no secret exposure found.
+- `uv run --locked pytest -m 'not integration and not browser' -q`: **278 passed**.
+  Authentication precedes providers; offline tests cover cookie/CSRF, malformed
+  credentials, revocation, fixed errors, privacy and credential-in-question rejection.
+- Fresh disposable PostgreSQL 17/pgvector 0.8.6 with temporary distinct passwords:
+  migrations through `0005`, role provisioning, deterministic seed, `verify_data`
+  and `alembic check` all passed. `QUERYLENS_INTEGRATION=1 uv run --locked pytest -m integration -q`:
+  **90 passed**. Four simultaneous admissions on a one-question token admitted
+  exactly one; token/global quota denial rollback, digest/session storage,
+  revocation/expiry, audit/recovery and real ACLs passed. A real HTTP missing-key
+  request recorded the token, charge and error without constructing a provider.
+- `QUERYLENS_BROWSER=1 uv run --locked --group browser pytest tests/test_ui_browser.py -q`:
+  **30 passed**, including invitation entry/reload/logout at 1280/390 pixels and
+  revocation without automatic question retries. Providers/access stores in this
+  group are labeled offline fixtures.
+- `scripts.evaluate --offline` against disposable seeded PostgreSQL: **20/20 passed**.
+  Scripted providers/gold-heading vectors establish regression contracts, not
+  semantic AI quality. Existing local/hosted indexes were preserved.
+- Built the production Dockerfile into a local test image and ran the API with
+  only readers/control credentials on an isolated network. Verified public entry
+  and access readiness, anonymous docs/chat 401, cookie login and protected docs,
+  an admitted missing-key failure consuming exactly one USD 0.114320 reservation,
+  preserved session/remaining quota after API restart, and immediate revocation.
+  Logs contained token attribution and successful audit, without the invitation,
+  session, CSRF nonce or question. Test containers/network/private credential file
+  were removed; no persistent local/hosted data was changed.
+
+The first integration attempt exposed a JSON SQL bind parsing issue in stale
+recovery and a datetime serialization issue in a test; both were corrected before
+passing the suite. Docker smoke helper retries handled a connection closing during
+startup and parsed JSON logs structurally instead of assuming whitespace; they
+required no application workaround.
+
+Total test groups: **398 passed** (278 offline + 90 PostgreSQL + 30 browser).
+No paid provider call, remote mutation, commit or push was made for this feature.
+Hosted code remains the preceding `cd1a7ea` deployment; invitation migration,
+permissions and gate rollout have not been verified there. The business corpus
+is unchanged and needs no reingestion. Full stage 8 AI/restart/backup acceptance
+remains pending. Follow [access.md](access.md) and the explicit
+[rollout sequence](deployment.md#invitation-access-rollout).
+
+## Active localhost access corrected — 2026-10-12
+
+The author observed unauthenticated answers at `http://127.0.0.1:8000/`.
+Inspection confirmed the running Compose API had `PUBLIC_DEMO_ENABLED=false`,
+no invitation flag and the preceding image. Local opt-in had been documented,
+but the active workspace had not been upgraded. This was a configuration/rollout
+gap, not a successful test of the protected API.
+
+Stopped the local API, preserved secrets and set invitation/shared admission in
+the ignored `.env`, with exact loopback origin and development cookies. Applied
+migration `0005`, re-provisioned existing dedicated roles, and configured the
+previously empty local policy for USD 1/month. This local ledger is separate from
+Railway. No seed, ingestion or provider call was run. Created the owner invitation
+`Local development` into ignored `.access-tokens/local-dev.txt` (5 questions,
+USD 0.60 reservation cap, 30 days), then rebuilt/recreated the Compose API.
+
+Actual HTTP checks on port 8000 passed: readiness includes access=true; entry
+200; anonymous chat/docs/demo/status 401; login and protected metadata/docs 200;
+logout followed by status 401. The anonymous chat probe used malformed JSON to
+verify authentication before validation while guaranteeing no paid work even if
+the check failed. The shared ledger remained unchanged; the invitation has all
+five questions available. No full credential or session was printed.
+
+Test policy settings now ignore the developer's `.env` by default in fixtures,
+so enabling real local access does not silently change offline test applications.
+The module-scoped browser server also selects its offline policy explicitly:
+its initial rerun inherited the newly enabled local gate and stopped at the
+entry form; the fixture was corrected without weakening production access.
+Explicit test settings/environment-file paths remain available. Ruff checks,
+278 offline tests and 30 browser tests passed after this adjustment. No hosted
+service/variable/policy was changed, and source/docs remain uncommitted.
+
+
+## Invitation form visibility and asset updates — 2026-10-12
+
+The author supplied a localhost screenshot with both the invitation and workspace
+hidden. A fresh Chromium session on the active service displayed the entry form
+without page errors; the author's exact browser cache/extension state was not
+inspected. Stale cached JavaScript was a plausible explanation, not a confirmed
+browser diagnosis. The initial HTML had hidden the form until script bootstrap.
+
+Changed the initial entry form to visible, added content-versioned CSS/JavaScript
+URLs in the no-cache HTML response, and added responsive padding to the access
+card. Authenticated bootstrap still hides the form and opens the workspace;
+server-side authentication is unchanged. A content-change regression confirms
+asset URLs update, and a browser regression aborts the JavaScript fetch and
+confirms the entry field stays visible without a provider call. An initial
+fallback test also required noscript content and failed; the final test directly
+checks failed script loading, which is the intended regression scenario.
+
+Checks: UI/access pytest files 28 passed; the complete offline browser file
+31 passed; Ruff lint/format, JavaScript syntax and diff checks passed. Rebuilt
+and recreated the local Compose API. Fresh actual-localhost Chromium checks at
+1440/390 pixels confirmed field visibility, no horizontal overflow/page errors,
+and versioned asset URLs; failed-script loading kept the field visible. Desktop
+and mobile screenshots were visually inspected. No chat POST, paid call, token
+quota change or hosted mutation was performed. Changes remain uncommitted.
+
+## Local invitation quota and hosted creation recipe — 2026-10-12
+
+At the author's request, updated the existing `Local development` invitation
+from 5 to 10 lifetime requests and its reservation cap from USD 0.60 to USD 1.20.
+The owner CLI preserved the existing one admitted request/114320 micro-USD charge,
+expiry and credential. An authenticated, read-only HTTP status check confirmed
+nine questions remain in the invitation allowance. No question/provider was run.
+
+The shared local policy remains USD 1/month (maximum eight total admissions);
+the token cap cannot bypass it. Asked separately whether to raise only that local
+policy to USD 1.20; no policy change is authorized without the reply. Hosted
+USD 1 allocation is unchanged. Public read-only HTTPS checks confirmed Railway
+readiness 200 with the preceding three checks and `/api/access/status` 404, so
+the hosted invitation rollout is still pending, not silently assumed complete.
+
+Added exact SSH-tunnel, private `.env.production`, `uv --env-file` and hosted
+owner invitation CLI commands to the access guide. Railway official SSH docs
+and installed CLI help support the tunnel/config commands; installed uv help
+confirms environment-file support. No hosted credential was fetched, no tunnel,
+hosted migration or creation was performed. Diff checks passed; code unchanged,
+so tests were not repeated. Source/docs remain uncommitted.
+
+
+## Invitation feature commit preflight — 2026-10-12
+
+At the author's explicit request to commit/push the completed invitation changes,
+re-ran `ruff check`, `ruff format --check`, JavaScript syntax, diff checks and the
+complete offline suite: **279 passed** (121 integration/browser cases deselected).
+The latest real PostgreSQL 90-pass and browser 31-pass evidence above remains
+applicable; database behavior and browser source have not changed since those
+checks. Staged diff checks caught trailing spaces in generated migration DDL; these
+were removed without changing SQL semantics. Hosted deployment is left to the
+author and has not been performed as
+part of this push. Apply `0005` and re-provision existing hosted roles with the
+new source before the API can become ready. Neither local/hosted shared budget
+was raised; the local-only USD 1.20 allocation question remains unanswered.

@@ -40,7 +40,7 @@ button:disabled {
   opacity:.6;
 }
 
-button:focus-visible,a:focus-visible,summary:focus-visible,textarea:focus-visible,[tabindex="0"]:focus-visible {
+button:focus-visible,a:focus-visible,summary:focus-visible,textarea:focus-visible,input:focus-visible,[tabindex="0"]:focus-visible {
   outline:3px solid #77a982;
   outline-offset:4px;
 }
@@ -802,4 +802,32 @@ footer {
     transition:none!important;
     scroll-behavior:auto!important;
   }
+}
+/* Invitation entry shares the workspace's panel and keyboard focus styles. */
+.access-panel {
+  max-width:36rem;
+  margin-bottom:2rem;
+  padding:clamp(21px,3vw,32px);
+}
+.access-panel h2 {
+  margin:0 0 1rem;
+}
+.access-panel p {
+  color:var(--muted);
+}
+.access-panel input {
+  display:block;
+  width:100%;
+  box-sizing:border-box;
+  padding:1rem;
+  margin:.75rem 0 1.25rem;
+  border:1px solid #cad6ce;
+  border-radius:.75rem;
+  font:inherit;
+  background:#fafbf7;
+  color:inherit;
+}
+#access-remaining {
+  min-width:0;
+  overflow-wrap:anywhere;
 }

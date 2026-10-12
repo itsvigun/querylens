@@ -216,6 +216,25 @@ def provision_roles(settings: Settings, passwords: RolePasswords) -> None:
                         role
                     )
                 )
+                cursor.execute(
+                    sql.SQL("GRANT SELECT ON operations.access_tokens TO {}").format(role)
+                )
+                cursor.execute(
+                    sql.SQL("GRANT SELECT, UPDATE ON operations.access_usage TO {}").format(role)
+                )
+                cursor.execute(
+                    sql.SQL(
+                        "GRANT SELECT, INSERT, DELETE ON operations.access_sessions TO {}"
+                    ).format(role)
+                )
+                cursor.execute(
+                    sql.SQL("GRANT SELECT, INSERT ON operations.access_requests TO {}").format(role)
+                )
+                cursor.execute(
+                    sql.SQL(
+                        "GRANT UPDATE (completed_at, summary) ON operations.access_requests TO {}"
+                    ).format(role)
+                )
 
 
 def main() -> int:

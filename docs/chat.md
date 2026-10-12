@@ -153,3 +153,15 @@ Chat responses include a server-generated `X-Request-ID`; the service result als
 includes `request_id`. One sanitized JSON summary per request records usage,
 latency and tool/SQL counts. See [observability](observability.md) for fields and
 logging boundaries, and [evaluation](evaluation.md) for value/source checks.
+
+## Protected HTTP access
+
+Railway and locally enabled invitation mode authenticate before parsing chat input
+or creating providers. API clients send an invitation in the Authorization Bearer
+header; the browser uses its short HttpOnly session with Origin/CSRF checks.
+Anonymous requests receive 401. Invitation lifetime count/budget/rate quotas and
+the shared demo policy reserve atomically before a question, and authenticated
+request summaries are attributed to a server-derived token ID. Explicit developer
+CLI jobs remain outside this HTTP ledger. See [access.md](access.md) for owner
+commands and [deployment](deployment.md#invitation-access-rollout) before upgrading
+an existing hosted API. Do not include an invitation/session code in question text.

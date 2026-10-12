@@ -135,3 +135,21 @@ permissions and zero-budget public HTTP without paid calls. Browser fixtures
 exercise specific public limit messages with no automatic retries. Follow the
 separate [deployment acceptance](deployment.md#backups-and-deployment-acceptance)
 on a real URL before marking hosting complete.
+
+## Invitation access checks
+
+```bash
+uv run --locked pytest tests/test_access.py -q
+QUERYLENS_INTEGRATION=1 uv run --locked pytest tests/test_access_integration.py -q
+QUERYLENS_BROWSER=1 uv run --locked --group browser pytest tests/test_ui_browser.py -q
+```
+
+Use a fresh migrated/provisioned/seeded disposable database: access integration
+fixtures require all operations tables to be empty and remove only their own
+records. Never target the hosted ledger. They check hashed storage, private files,
+wrong/expired/revoked credentials, sessions/logout, concurrent quota admission,
+per-token/global rollback, durable audit, interrupted-request recovery, role ACLs
+and real HTTP readiness/accounting without a key/provider. Browser fixtures cover
+entry/cookie/reload/logout on desktop/mobile and revocation without retries.
+They establish access/control behavior, not semantic AI quality. Existing CI's
+three test groups include these files automatically without paid keys.

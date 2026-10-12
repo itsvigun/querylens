@@ -1,6 +1,13 @@
 import pytest
 
-from app.config import Settings
+from app.config import AccessSettings, PublicDemoSettings, Settings
+
+
+@pytest.fixture(autouse=True)
+def isolated_http_policy_settings(monkeypatch: pytest.MonkeyPatch) -> None:
+    # A developer's protected .env must not change explicitly configured test apps.
+    for model in (AccessSettings, PublicDemoSettings):
+        monkeypatch.setitem(model.model_config, "env_file", None)
 
 
 @pytest.fixture

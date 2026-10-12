@@ -154,7 +154,8 @@ assets and the existing `/demo` and `/api/chat` contracts. Keep all returned tex
 literal, preserve exact numeric strings and undefined values, and make source/SQL
 evidence and truncation visible. Opening the page or choosing examples must not
 invoke providers. Questions remain independent; clarification edits the full
-question. No client secrets, browser persistence or automatic retries. UI context
+question. No provider/database secrets, question/result browser persistence or automatic retries.
+  The invitation flow below uses a short HttpOnly session cookie. UI context
 must show the synthetic label and actual demo reference date. Use the optional
 `browser` group and `QUERYLENS_BROWSER=1` for Chromium tests with labeled offline
 answers; ordinary tests remain independent of browser installs and paid keys.
@@ -184,3 +185,20 @@ docs/observability.md and docs/ci.md before changing these contracts.
   injection, recovery, exhausted budgets, and answer/result consistency.
 - Verify a fresh setup using `docs/setup.md` before marking local setup complete, and
   run live deployment smoke checks before marking deployment complete.
+
+Invitation access adds owner-issued named codes without registration or public
+admin endpoints. Read `docs/access.md`, `docs/observability.md` and the rollout
+section in `docs/deployment.md` before changing it. Use 256-bit opaque credentials
+with only digests in PostgreSQL. Owner creation writes a new private file, never
+plaintext job logs. Railway requires the gate; local development can opt in.
+Authenticate before providers, and reserve lifetime token quotas plus the shared
+monthly budget in one PostgreSQL transaction. Revocation/expiry applies to linked
+browser sessions and is rechecked at admission. Already admitted work can finish.
+Keep secure host-only HttpOnly/SameSite cookies, exact Origin and CSRF checks for
+cookie POSTs, Bearer authentication for API clients, and no credential URLs/storage.
+Runtime control credentials cannot issue/revoke/edit invitations; owner credentials
+stay outside the API. Logs contain server-derived token IDs and fixed summaries;
+company labels appear only in metadata/reports. Durable audit omits questions,
+SQL/results, credentials and headers; pending usage stays unknown without refunds.
+Verify PostgreSQL quota races/ACLs/recovery and offline HTTP/browser access, with
+no paid key. Hosted gate acceptance is separate from local checks.

@@ -79,7 +79,7 @@ class DemoGate:
         self.engine = engine
         self.policy = policy
 
-    def admit(self, request_id: str):
+    def admit(self, request_id: str, *, identity=None):
         UUID(request_id)
         try:
             with self.engine.begin() as connection:
@@ -92,6 +92,17 @@ class DemoGate:
                 now = connection.scalar(text("SELECT clock_timestamp()"))
                 month = now.date().replace(day=1)
                 minute = now.replace(second=0, microsecond=0)
+                if identity is not None:
+                    from app.access import reserve_access
+
+                    reserve_access(
+                        connection,
+                        identity,
+                        request_id,
+                        now,
+                        self.policy.request_micro_usd,
+                        PRICING_VERSION,
+                    )
                 connection.execute(
                     text(
                         "INSERT INTO operations.demo_months "

@@ -1,9 +1,11 @@
 """Local, non-streaming API for the first tool-calling session."""
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import Field
 
+from app.access import CREDENTIAL
+from app.api.access import bearer_scheme
 from app.demo_gate import AdmissionError
 from app.llm.contracts import StrictModel, valid_text
 from app.llm.service import ask
@@ -27,9 +29,9 @@ def admission_response(request: Request, error: AdmissionError):
     return JSONResponse(status_code=error.status_code, content=result, headers=headers)
 
 
-@router.post("/chat")
+@router.post("/chat", dependencies=[Depends(bearer_scheme)])
 def chat(body: ChatRequest, request: Request):
-    if not valid_text(body.question, 2000):
+    if not valid_text(body.question, 2000) or CREDENTIAL.search(body.question):
         raise HTTPException(422, detail="Question must contain up to 2000 UTF-8 bytes of text.")
     # Keep the cheap local guard as well as the durable, shared public policy.
     if not request.app.state.chat_lock.acquire(blocking=False):
@@ -42,7 +44,11 @@ def chat(body: ChatRequest, request: Request):
         if gate is None:
             result = ask(body.question)
         else:
-            gate.admit(request_id)
+            identity = getattr(request.state, "access_identity", None)
+            if identity is None:
+                gate.admit(request_id)
+            else:
+                gate.admit(request_id, identity=identity)
             try:
                 result = ask(
                     body.question,

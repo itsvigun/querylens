@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 import uvicorn
 
-from app.config import Settings
+from app.config import AccessSettings, PublicDemoSettings, Settings
 from app.main import create_app
 
 pytestmark = [
@@ -72,14 +72,18 @@ ANSWER = {
 def ui_server():
     state = {"answer": copy.deepcopy(ANSWER), "calls": [], "hold": None}
 
-    def offline_ask(question):
+    def offline_ask(question, **kwargs):
         state["calls"].append(question)
         if state["hold"]:
             assert state["hold"].wait(10), "Browser test did not release its request"
         return copy.deepcopy(state["answer"])
 
     settings = Settings(_env_file=None, postgres_password="offline-test-password", postgres_port=1)
-    app = create_app(settings)
+    app = create_app(
+        settings,
+        demo_settings=PublicDemoSettings(_env_file=None, public_demo_enabled=False),
+        access_settings=AccessSettings(_env_file=None, token_access_required=False),
+    )
     server = uvicorn.Server(uvicorn.Config(app, log_level="error"))
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr("app.api.chat.ask", offline_ask)
@@ -380,3 +384,93 @@ def test_public_limit_errors_display_specific_message_without_retry(
     expect(page.get_by_text(message, exact=False)).to_be_visible()
     expect(page.get_by_role("button", name="Ask QueryLens")).to_be_enabled()
     assert len(seen) == 1 and not state["calls"]
+
+
+@pytest.fixture
+def invited_ui(ui, monkeypatch):
+    from app.config import AccessSettings, EmbeddingSettings, LLMSettings
+    from tests.test_access import OfflineGate, OfflineStore
+
+    page, state, app = ui
+    origin = page.url.rstrip("/")
+    store = OfflineStore()
+    with monkeypatch.context() as patch:
+        patch.setattr(
+            app.state,
+            "access_settings",
+            AccessSettings(
+                _env_file=None,
+                token_access_required=True,
+                access_public_origin=origin,
+                access_cookie_secure=False,
+            ),
+        )
+        patch.setattr(app.state, "access_store", store)
+        patch.setattr(app.state, "demo_gate", OfflineGate())
+        patch.setattr(app.state, "llm_settings", LLMSettings(_env_file=None), raising=False)
+        patch.setattr(
+            app.state, "embedding_settings", EmbeddingSettings(_env_file=None), raising=False
+        )
+        page.reload()
+        yield page, state, store
+
+
+@pytest.mark.parametrize("width", [1280, 390])
+def test_invitation_entry_cookie_reload_and_logout(invited_ui, width):
+    from playwright.sync_api import expect
+
+    page, state, store = invited_ui
+    page.set_viewport_size({"width": width, "height": 960})
+    expect(page.get_by_label("Access code", exact=True)).to_be_visible()
+    expect(page.locator("#workspace")).to_be_hidden()
+    assert state["calls"] == []
+    page.get_by_label("Access code", exact=True).fill(store.token)
+    page.get_by_role("button", name="Open workspace").click()
+    expect(page.locator("#workspace")).to_be_visible()
+    expect(page.locator("#access-remaining")).to_contain_text("Offline company")
+    expect(page.get_by_label("Access code", exact=True)).to_have_value("")
+    assert state["calls"] == []
+    assert page.evaluate("localStorage.length + sessionStorage.length") == 0
+    assert "querylens_dev_session" not in page.evaluate("document.cookie")
+    assert all(cookie["httpOnly"] for cookie in page.context.cookies())
+    assert page.evaluate("document.documentElement.scrollWidth <= innerWidth")
+    page.reload()
+    expect(page.locator("#workspace")).to_be_visible()
+    ask(page)
+    expect(page.locator("#answer-badge")).to_have_text("Answered")
+    assert len(state["calls"]) == 1
+    page.get_by_role("button", name="Sign out").click()
+    expect(page.get_by_label("Access code", exact=True)).to_be_visible()
+    expect(page.locator("#workspace")).to_be_hidden()
+    assert not store.sessions and len(state["calls"]) == 1
+
+
+def test_invitation_revocation_does_not_retry_the_question(invited_ui):
+    from playwright.sync_api import expect
+
+    page, state, store = invited_ui
+    page.get_by_label("Access code", exact=True).fill(store.token)
+    page.get_by_role("button", name="Open workspace").click()
+    expect(page.locator("#workspace")).to_be_visible()
+    store.revoked = True
+    ask(page)
+    expect(page.get_by_label("Access code", exact=True)).to_be_visible()
+    expect(page.locator("#access-error")).to_contain_text("invalid, expired or revoked")
+    assert not state["calls"]
+
+
+def test_invitation_entry_is_visible_when_script_fails_to_load(ui_server, browser):
+    from playwright.sync_api import expect
+
+    url, _, state = ui_server
+    calls_before = list(state["calls"])
+    context = browser.new_context()
+    try:
+        page = context.new_page()
+        page.route("**/assets/app.js*", lambda route: route.abort())
+        page.goto(url)
+        expect(page.get_by_label("Access code", exact=True)).to_be_visible()
+        expect(page.locator("#workspace")).to_be_hidden()
+        assert state["calls"] == calls_before
+    finally:
+        context.close()

@@ -28,6 +28,16 @@ ERRORS = (
         "demo_rate_limit",
         "demo_busy",
         "demo_budget_exhausted",
+        "access_required",
+        "access_denied",
+        "access_unavailable",
+        "access_origin_denied",
+        "access_request_limit",
+        "access_budget_exhausted",
+        "access_rate_limit",
+        "access_session_limit",
+        "access_disabled",
+        "request_interrupted",
     }
 )
 STATUSES = {"answered", "clarification", "insufficient_context", "unsupported", "error"}
@@ -72,7 +82,25 @@ def summary(result: dict) -> dict:
     }
 
 
-def log_request(request_id: str, result: dict, duration_ms: int, *, http_status=None):
+def safe_token_id(value):
+    return (
+        value
+        if isinstance(value, str)
+        and len(value) == 32
+        and all(c in "0123456789abcdef" for c in value)
+        else None
+    )
+
+
+def log_request(
+    request_id: str,
+    result: dict,
+    duration_ms: int,
+    *,
+    http_status=None,
+    token_id=None,
+    audit_recorded=None,
+):
     event = {
         "event": "analytics_request",
         "timestamp": datetime.now(UTC).isoformat(),
@@ -81,4 +109,24 @@ def log_request(request_id: str, result: dict, duration_ms: int, *, http_status=
         "http_status": http_status,
         **summary(result),
     }
+    if token_id is not None:
+        event["token_id"] = safe_token_id(token_id)
+        event["audit_recorded"] = audit_recorded is True
     LOGGER.info(json.dumps(event, separators=(",", ":"), allow_nan=False))
+
+
+def log_access(request_id, category, http_status, token_id=None):
+    LOGGER.info(
+        json.dumps(
+            {
+                "event": "access_request",
+                "timestamp": datetime.now(UTC).isoformat(),
+                "request_id": request_id,
+                "http_status": http_status,
+                "category": category
+                if category in ERRORS | {"access_login", "access_logout"}
+                else "request_failed",
+                "token_id": safe_token_id(token_id),
+            }
+        )
+    )

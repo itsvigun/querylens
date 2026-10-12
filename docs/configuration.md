@@ -65,3 +65,20 @@ controls a startup error. Configure the matching policy explicitly using owner
 credentials; workers cannot change policy. Default per-question reservation is
 $0.114320; unused amounts are not refunded. See [deployment](deployment.md) for
 pricing assumptions, credential separation, recovery and actual acceptance limits.
+
+## Invitation access settings
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `TOKEN_ACCESS_REQUIRED` | Unset; false locally, required on Railway | Enable HTTP invitation authentication; false is rejected on Railway |
+| `ACCESS_PUBLIC_ORIGIN` | Unset | Exact browser origin, with scheme and optional port, no trailing slash/path; falls back to `https://RAILWAY_PUBLIC_DOMAIN` |
+| `ACCESS_COOKIE_SECURE` | `true` | Secure host-only production cookie; false is allowed only for local loopback development |
+| `ACCESS_SESSION_TTL_SECONDS` | `28800` | Session lifetime, 300–86400 seconds, capped by token expiry |
+
+Invitation mode also requires `PUBLIC_DEMO_ENABLED=true`, the configured global
+policy and the dedicated control role. It fails closed when authentication storage
+is unavailable. Docker Compose forwards these settings and defaults to local HTTP
+with insecure development cookies; its origin defaults to `http://127.0.0.1:8000`.
+Match an overridden `API_PORT` with an explicit origin. For Railway/custom domains,
+use the final HTTPS origin and secure cookies; do not copy Compose's local false
+overrides into hosted variables. Full owner CLI and quota bounds: [access.md](access.md).

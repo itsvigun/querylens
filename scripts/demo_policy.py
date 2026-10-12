@@ -61,6 +61,23 @@ def release_stale(engine, request_id: str):
         connection.execute(
             text("DELETE FROM operations.demo_leases WHERE request_id=:id"), {"id": request_id}
         )
+        connection.execute(
+            text(
+                "UPDATE operations.access_requests SET completed_at=clock_timestamp(), "
+                "summary=CAST(:summary AS jsonb) "
+                "WHERE request_id=:id AND completed_at IS NULL"
+            ),
+            {
+                "id": request_id,
+                "summary": json.dumps(
+                    {
+                        "status": "error",
+                        "error_category": "request_interrupted",
+                        "usage_complete": False,
+                    }
+                ),
+            },
+        )
     # The potentially billed request remains charged, including after a crash.
 
 

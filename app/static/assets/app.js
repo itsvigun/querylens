@@ -10,12 +10,26 @@ const inputError = document.querySelector("#input-error");
 const encoder = new TextEncoder();
 let busy = false;
 let contextReady = false;
+let csrfToken = null;
+let accessRequired = false;
+const accessPanel = document.querySelector("#access-panel");
+const workspace = document.querySelector("#workspace");
+const accessError = document.querySelector("#access-error");
+const accessStatus = document.querySelector("#access-status");
 
 const statusLabels = {
   answered: "Answered", clarification: "Clarify", unsupported: "Unsupported",
   insufficient_context: "Missing context", error: "Could not complete",
 };
 const errors = {
+  access_required: "Enter your invitation access code to open the workspace.",
+  access_denied: "This access code or session is invalid, expired or revoked. Enter a valid access code.",
+  access_unavailable: "Access verification is temporarily unavailable. Try again later.",
+  access_origin_denied: "The access session could not be verified. Reload the page before trying again.",
+  access_request_limit: "This invitation has used its question allowance. Contact the person who shared it with you.",
+  access_budget_exhausted: "This invitation has used its AI allowance. Contact the person who shared it with you.",
+  access_rate_limit: "This invitation has reached its request limit. Wait a minute before trying again.",
+  access_session_limit: "This invitation has too many open sessions. Sign out in another browser or contact the person who shared it.",
   demo_busy: "Another question is already running. Wait for it to finish, then try again.",
   demo_rate_limit: "The demo has reached its request limit. Wait a minute before trying again.",
   demo_budget_exhausted: "The demo's monthly AI allowance has been used. Please return next month.",
@@ -89,18 +103,21 @@ function updateInput() {
   inputError.hidden = !invalid;
   inputError.textContent = invalid ? "Use at most 2000 UTF-8 bytes and remove invalid characters." : "";
   submit.disabled = busy || !contextReady || invalid || !question.value.trim();
+  document.querySelector("#access-logout").disabled = busy;
 }
 
 async function requestJSON(url, options = {}, timeout = 130000) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeout);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal, credentials: "same-origin" });
+    const headers = { ...options.headers, "X-QueryLens-Client": "browser" };
+    if (csrfToken && options.method && options.method !== "GET") headers["X-CSRF-Token"] = csrfToken;
+    const response = await fetch(url, { ...options, headers, signal: controller.signal, credentials: "same-origin" });
     if (!response.ok) {
       let category;
       try {
         const data = await response.json();
-        if (data?.status === "error" && ["demo_busy", "demo_rate_limit", "demo_budget_exhausted", "demo_controls_unavailable", "demo_policy_mismatch"].includes(data.error?.category)) {
+        if (data?.status === "error" && ["demo_busy", "demo_rate_limit", "demo_budget_exhausted", "demo_controls_unavailable", "demo_policy_mismatch", "access_required", "access_denied", "access_unavailable", "access_origin_denied", "access_request_limit", "access_budget_exhausted", "access_rate_limit", "access_session_limit"].includes(data.error?.category)) {
           category = data.error.category;
         }
       } catch { /* Keep the HTTP fallback for malformed error bodies. */ }
@@ -116,6 +133,73 @@ async function requestJSON(url, options = {}, timeout = 130000) {
     clearTimeout(timer);
   }
 }
+
+function lockWorkspace(message) {
+  contextReady = false;
+  csrfToken = null;
+  accessPanel.hidden = false;
+  workspace.hidden = true;
+  accessStatus.hidden = true;
+  document.querySelector("#demo-context").hidden = true;
+  document.querySelector("#api-docs-link").hidden = true;
+  accessError.hidden = !message;
+  accessError.textContent = message || "";
+  content.replaceChildren(node("p", "Start with a question", "empty-state"));
+  badge.textContent = "Ready";
+  delete badge.dataset.status;
+  updateInput();
+}
+
+async function refreshAccess() {
+  const data = await requestJSON("/api/access/status", {}, 10000);
+  if (data.authenticated !== true || typeof data.required !== "boolean") throw new Error("invalid_response");
+  accessRequired = data.required;
+  csrfToken = data.csrf_token || null;
+  accessStatus.hidden = !accessRequired;
+  document.querySelector("#access-remaining").textContent = accessRequired ? `${data.name} · ${data.remaining_requests} questions remaining · subject to shared demo availability` : "";
+  return data;
+}
+
+async function openWorkspace() {
+  try {
+    await refreshAccess();
+    accessPanel.hidden = true;
+    workspace.hidden = false;
+    document.querySelector("#demo-context").hidden = false;
+    document.querySelector("#api-docs-link").hidden = false;
+    await loadContext();
+  } catch (error) {
+    lockWorkspace(error.message === "access_required" ? null : errorMessage(error.message));
+  }
+}
+
+document.querySelector("#access-form").addEventListener("submit", async event => {
+  event.preventDefault();
+  const code = document.querySelector("#access-code");
+  const button = document.querySelector("#access-submit");
+  if (button.disabled) return;
+  button.disabled = true;
+  const credential = code.value.trim();
+  code.value = "";
+  try {
+    await requestJSON("/api/access/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: credential }) }, 10000);
+    await openWorkspace();
+  } catch (error) {
+    accessError.textContent = errorMessage(error.message);
+    accessError.hidden = false;
+  } finally {
+    button.disabled = false;
+  }
+});
+
+document.querySelector("#access-logout").addEventListener("click", async () => {
+  try {
+    await requestJSON("/api/access/logout", { method: "POST" }, 10000);
+    content.replaceChildren();
+    question.value = "";
+    lockWorkspace();
+  } catch (error) { renderAnswer({ status: "error", error: { category: error.message } }, "Sign out"); }
+});
 
 async function loadContext() {
   const retry = document.querySelector("#retry-context");
@@ -293,11 +377,18 @@ form.addEventListener("submit", async event => {
     renderAnswer(data, asked);
   } catch (error) {
     renderAnswer({ status: "error", error: { category: error.message } }, asked);
+    if (["access_required", "access_denied"].includes(error.message)) lockWorkspace(errorMessage(error.message));
   } finally {
     busy = false;
     question.disabled = false;
     document.querySelectorAll(".example").forEach(button => { button.disabled = false; });
     document.querySelector(".answer-panel").setAttribute("aria-busy", "false");
+    if (accessRequired && csrfToken) {
+      try { await refreshAccess(); }
+      catch (error) {
+        if (["access_required", "access_denied"].includes(error.message)) lockWorkspace(errorMessage(error.message));
+      }
+    }
     updateInput();
     document.querySelector("#answer-heading").focus({ preventScroll: true });
     if (window.matchMedia("(max-width: 700px)").matches) {
@@ -319,4 +410,4 @@ document.querySelectorAll(".example").forEach(button => button.addEventListener(
   question.focus();
 }));
 document.querySelector("#retry-context").addEventListener("click", loadContext);
-loadContext();
+openWorkspace();

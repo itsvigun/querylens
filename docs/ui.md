@@ -5,17 +5,20 @@
 The UI is available at [http://127.0.0.1:8000/](http://127.0.0.1:8000/).
 Complete [setup](setup.md), configure the server-side API key and explicitly
 [ingest the knowledge corpus](retrieval.md) before asking real questions.
-The page itself only loads local assets and `GET /demo`; opening it or selecting
+The page itself loads local assets, `GET /api/access/status` and, after access
+is established, `GET /demo`; opening it or selecting
 an example makes no provider call. The Ask button submits one `POST /api/chat`.
 
 ## Using the workspace
 
-1. Read the visible synthetic label, UTC reference date, dataset version and currency.
-2. Ask about the dataset, enter a metric and period, or select an example to fill the question field.
-3. Click **Ask QueryLens** (or press Ctrl/Cmd+Enter). The form disables while waiting.
-4. Inspect the answer facts, SQL/result tables, source citations and expanded source text.
+1. In protected mode, enter the invitation code and click **Open workspace**.
+   The page shows its name and remaining questions; **Sign out** ends the session.
+2. Read the visible synthetic label, UTC reference date, dataset version and currency.
+3. Ask about the dataset, enter a metric and period, or select an example to fill the question field.
+4. Click **Ask QueryLens** (or press Ctrl/Cmd+Enter). The form disables while waiting.
+5. Inspect the answer facts, SQL/result tables, source citations and expanded source text.
    **Run details** exposes returned timing, model/token usage and tool trace.
-5. For clarification, edit the full question and ask again. Questions are independent;
+6. For clarification, edit the full question and ask again. Questions are independent;
    no previous answer or conversation history is sent automatically.
 
 The byte counter matches the API's 2000-byte UTF-8 limit. Failed context loading
@@ -39,7 +42,14 @@ returned**; NULL facts say **Undefined**. Truncated tables are labeled as sample
 - [`app/static/index.html`](../app/static/index.html) holds the accessible page structure.
 - [`app/static/assets/app.js`](../app/static/assets/app.js) loads metadata, submits questions and renders results.
 - [`app/static/assets/app.css`](../app/static/assets/app.css) supplies responsive layout and reduced-motion styles.
-- The existing FastAPI app mounts `/assets`; `/docs` continues to serve Swagger UI.
+- The existing FastAPI app mounts `/assets`; `/docs` serves Swagger behind the invitation gate in protected mode.
+
+The entry form is visible in the initial HTML, before JavaScript verifies access.
+The script hides it only after establishing access. The HTML response uses
+`no-cache`; CSS/JavaScript URLs include their content hash so a browser cannot
+reuse an old script with a newly deployed page. This prevents an empty workspace
+after an asset update. A blocked script still leaves the entry form visible;
+interactive login requires JavaScript.
 
 The UI uses browser-native HTML/CSS/JavaScript with local assets and system fonts.
 There is no JavaScript build or frontend runtime dependency. The Dockerfile's
@@ -58,7 +68,10 @@ The page sends a restrictive Content-Security-Policy allowing only same-origin
 assets and requests, with no inline scripts/styles or framing. It has labeled
 inputs, live status announcements, visible keyboard focus, accessible disclosures,
 scrollable result tables and a mobile layout. The browser never receives API keys
-or database credentials, and answers are not persisted in browser storage.
+or database credentials, and answers are not persisted in browser storage. The
+invitation code is cleared after entry; the short login session uses an HttpOnly
+cookie and its CSRF nonce stays in memory. Expiry/revocation locks the workspace
+without submitting a question or automatically retrying. See [access.md](access.md).
 
 Server-side SQL permissions, budgets and answer validation remain authoritative;
 the UI's controls do not replace them. The main API keeps its configured request

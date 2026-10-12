@@ -19,10 +19,14 @@ def live() -> dict[str, str]:
 def ready(request: Request) -> JSONResponse:
     try:
         checks = database_checks(request.app.state.engine, request.app.state.migration_heads)
+        if request.app.state.access_store is not None:
+            checks["access"] = request.app.state.access_store.ready()
     except SQLAlchemyError, OSError:
         # Do not log exception text or return connection details to the caller.
         logger.warning("Database readiness check failed")
         checks = {"database": False, "migrations": False, "pgvector": False}
+        if request.app.state.access_store is not None:
+            checks["access"] = False
 
     is_ready = all(checks.values())
     return JSONResponse(

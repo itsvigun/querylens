@@ -135,3 +135,12 @@ For public hosting and explicit deployment jobs, follow [deployment.md](deployme
 Local defaults keep public mode disabled; the Railway configuration requires it.
 The Docker entrypoint `python -m scripts.serve` supports `PORT`, keeps access logs
 and forwarded-header trust disabled, and performs no data/provider jobs.
+
+## Optional invitation access
+
+The default localhost workspace remains unprotected. For CV invitations or a
+protected local demo, follow [access.md](access.md): migrate/provision explicitly,
+enable shared admission, configure its policy, then create a private invitation
+file using the owner CLI. Railway requires invitation access automatically in
+this version; existing deployments need the [upgrade sequence](deployment.md#invitation-access-rollout)
+before deploying it. No startup migration, seed or ingestion is added.

@@ -74,6 +74,10 @@ services:
     <<: *app
     environment:
       <<: [*app-environment, *chat-environment, *demo-environment]
+      TOKEN_ACCESS_REQUIRED: ${TOKEN_ACCESS_REQUIRED:-false}
+      ACCESS_PUBLIC_ORIGIN: ${ACCESS_PUBLIC_ORIGIN:-http://127.0.0.1:8000}
+      ACCESS_COOKIE_SECURE: ${ACCESS_COOKIE_SECURE:-false}
+      ACCESS_SESSION_TTL_SECONDS: ${ACCESS_SESSION_TTL_SECONDS:-28800}
     init: true
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"

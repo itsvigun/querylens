@@ -18,13 +18,17 @@ cases, sanitized request summaries and GitHub Actions. See
 [verification.md](verification.md#stage-7) for actual checks. Stage 8 preparation adds Railway configuration, explicit setup jobs and shared
 PostgreSQL admission controls. The Railway UI, Swagger, dataset metadata and DB
 readiness are publicly verified, and live ingestion stored 25 knowledge chunks.
-Full live AI [deployment acceptance](deployment.md) remains pending.
+Full live AI [deployment acceptance](deployment.md) remains pending. Named
+[invitation access](access.md), per-token quotas and durable usage audit are
+implemented locally; their hosted rollout is pending.
 
 ## Request and data flow
 
 ```mermaid
 flowchart TD
-    Question["Question via web UI, CLI or POST /api/chat"] --> Graph["Per-question LangGraph state"]
+    HTTP["Browser / HTTP question"] --> Auth["Invitation authentication and atomic token + shared admission"]
+    Auth --> Graph["Per-question LangGraph state"]
+    CLI["Explicit developer CLI question"] --> Graph
     Graph --> Model["OpenAI Responses"]
     Model --> Dispatch["Validated server-side tool dispatch"]
     Dispatch --> Schema["Reviewed analytics schema"]
@@ -43,7 +47,8 @@ flowchart TD
 One PostgreSQL instance has separate `analytics` and `knowledge` schemas.
 Seed generation, migrations, role provisioning and ingestion are explicit jobs.
 Startup and health checks do not call providers or load data. Health readiness
-checks database/migrations/pgvector; retrieval separately checks index compatibility.
+checks database/migrations/pgvector and, in protected mode, access table permissions;
+retrieval separately checks index compatibility.
 
 ## Trust boundaries and correctness
 
@@ -80,6 +85,8 @@ does not establish semantic model accuracy. See [deployment controls](deployment
 | [`app/tools/`](../app/tools) | Reviewed schema, AST policy, bounded SQL execution, validated dispatch |
 | [`app/rag/`](../app/rag) | Markdown chunking, embeddings, versioned indexes, atomic ingestion and retrieval |
 | [`app/llm/`](../app/llm) | Responses adapter, prompt/contracts, per-question graph and answer grounding |
+| [`app/access.py`](../app/access.py), [`app/api/access.py`](../app/api/access.py) | Hashed invitations/sessions, HTTP authentication, CSRF and bounded audit |
+| [`scripts/access_tokens.py`](../scripts/access_tokens.py) | Owner-only invitation creation, quota updates, revocation and usage reports |
 | [`app/demo_gate.py`](../app/demo_gate.py), [`app/db/operations.py`](../app/db/operations.py) | Public admission policy, global rate/concurrency and durable budget reservations |
 | [`railway.toml`](../railway.toml), [`deploy/`](../deploy) | API and explicit job configuration; no service provisioning or secrets |
 | [`app/observability.py`](../app/observability.py) | Allowlisted JSON summaries and request ID context |

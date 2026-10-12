@@ -390,3 +390,39 @@ Independent values are in [`scripts/reference_values.json`](../scripts/reference
 Check all required definitions and fact-cell references, record failures and actual
 usage; do not convert the stage 7 offline baseline into a semantic accuracy claim.
 The original ARPU/ARPPU live report remains unchanged with strict failures.
+
+## Invitation access rollout
+
+This version requires invitation access on Railway. The deployed `cd1a7ea` API
+still uses the preceding public flow; local checks do not establish a hosted gate.
+Do the following before deploying the new source to an existing database:
+
+1. Disable automatic deployment during the upgrade and stop/drain the API workers.
+   Preserve the persistent database, knowledge index and shared budget ledger.
+2. Use the new source with owner credentials through the private SSH tunnel or an
+   explicit owner-only job. Run `alembic upgrade head`, then
+   `python -m scripts.provision_roles` with the existing four hosted role passwords.
+   Apply `0005_invitation_access`; do not run seed/ingest or recreate the policy.
+   Reconfiguring is needed only if its budget/provider settings actually change.
+3. On `querylens`, retain `PUBLIC_DEMO_ENABLED=true`, the existing USD 1 allocation,
+   readers/control credentials and key. Set `TOKEN_ACCESS_REQUIRED=true`,
+   `ACCESS_COOKIE_SECURE=true`, and
+   `ACCESS_PUBLIC_ORIGIN=https://querylens-production-f241.up.railway.app`.
+   The origin can also derive from Railway's public domain; configure it explicitly
+   when using a custom domain. Keep the default session TTL or set 300–86400 seconds.
+   Owner/writer credentials must not be added to the API.
+4. Create a named invitation on the laptop using the owner CLI and a private local
+   output file; see [access.md](access.md). Do not print the code in Railway logs.
+5. Deploy the new API source. Check public `/health/ready` returns 200 with
+   `checks.access=true`. Without a code, `/docs`, `/demo` and `/api/chat` must return
+   401; `/` should show the entry form. Enter the invitation and confirm workspace,
+   metadata and Swagger access. These checks do not invoke providers or consume
+   a question. A real question remains an explicitly budgeted AI check.
+6. Verify logout and revocation using an expendable invitation, and check its
+   metadata/usage report. Re-enable automatic deployments once the gate is verified.
+
+Fresh setup jobs naturally apply all five migrations before provisioning. Existing
+hosted ingestion does not need repeating: the business corpus/vector space is
+unchanged. Invitation limits nest under the shared global monthly cap, and
+updates preserve prior usage. API restart preserves sessions and counters in
+PostgreSQL. The complete hosted restart/backup/AI acceptance remains required.
