@@ -78,6 +78,7 @@ class OpenAIEmbedder:
         self.input_bytes = 0
         self.prompt_tokens = 0
         self.requests = 0
+        self.completed_requests = 0
         self.max_input_bytes = max_input_bytes
         self.client = (
             client
@@ -92,6 +93,10 @@ class OpenAIEmbedder:
 
     def close(self):
         self.client.close()
+
+    @property
+    def usage_complete(self):
+        return self.completed_requests == self.requests
 
     def embed(self, texts: list[str], *, deadline: float) -> list[list[float]]:
         if not 1 <= len(texts) <= 16 or any(
@@ -124,10 +129,19 @@ class OpenAIEmbedder:
             )
             if response.model != self.space.model:
                 raise EmbeddingError("invalid_embedding")
+            tokens = response.usage.prompt_tokens
+            if type(tokens) is not int or not 0 <= tokens <= input_bytes:
+                raise EmbeddingError("invalid_embedding")
+            if (
+                type(response.usage.total_tokens) is not int
+                or response.usage.total_tokens != tokens
+            ):
+                raise EmbeddingError("invalid_embedding")
+            self.prompt_tokens += tokens
+            self.completed_requests += 1
             ordered = sorted(response.data, key=lambda item: item.index)
             if [item.index for item in ordered] != list(range(len(texts))):
                 raise EmbeddingError("invalid_embedding")
-            self.prompt_tokens += response.usage.prompt_tokens
             vectors = validate_vectors(
                 [item.embedding for item in ordered], len(texts), self.space.dimensions
             )

@@ -12,6 +12,8 @@ let busy = false;
 let contextReady = false;
 let csrfToken = null;
 let accessRequired = false;
+let sharedAvailable = true;
+let budgetAvailable = true;
 const accessPanel = document.querySelector("#access-panel");
 const workspace = document.querySelector("#workspace");
 const accessError = document.querySelector("#access-error");
@@ -27,6 +29,7 @@ const errors = {
   access_unavailable: "Access verification is temporarily unavailable. Try again later.",
   access_origin_denied: "The access session could not be verified. Reload the page before trying again.",
   access_request_limit: "This invitation has used its question allowance. Contact the person who shared it with you.",
+  access_busy: "Another question is running for this invitation. Wait for it to finish.",
   access_budget_exhausted: "This invitation has used its AI allowance. Contact the person who shared it with you.",
   access_rate_limit: "This invitation has reached its request limit. Wait a minute before trying again.",
   access_session_limit: "This invitation has too many open sessions. Sign out in another browser or contact the person who shared it.",
@@ -102,7 +105,7 @@ function updateInput() {
   question.setAttribute("aria-invalid", String(invalid));
   inputError.hidden = !invalid;
   inputError.textContent = invalid ? "Use at most 2000 UTF-8 bytes and remove invalid characters." : "";
-  submit.disabled = busy || !contextReady || invalid || !question.value.trim();
+  submit.disabled = busy || !contextReady || !sharedAvailable || !budgetAvailable || invalid || !question.value.trim();
   document.querySelector("#access-logout").disabled = busy;
 }
 
@@ -117,7 +120,7 @@ async function requestJSON(url, options = {}, timeout = 130000) {
       let category;
       try {
         const data = await response.json();
-        if (data?.status === "error" && ["demo_busy", "demo_rate_limit", "demo_budget_exhausted", "demo_controls_unavailable", "demo_policy_mismatch", "access_required", "access_denied", "access_unavailable", "access_origin_denied", "access_request_limit", "access_budget_exhausted", "access_rate_limit", "access_session_limit"].includes(data.error?.category)) {
+        if (data?.status === "error" && ["demo_busy", "demo_rate_limit", "demo_budget_exhausted", "demo_controls_unavailable", "demo_policy_mismatch", "access_required", "access_denied", "access_unavailable", "access_origin_denied", "access_request_limit", "access_budget_exhausted", "access_rate_limit", "access_busy", "access_session_limit"].includes(data.error?.category)) {
           category = data.error.category;
         }
       } catch { /* Keep the HTTP fallback for malformed error bodies. */ }
@@ -140,6 +143,8 @@ function lockWorkspace(message) {
   accessPanel.hidden = false;
   workspace.hidden = true;
   accessStatus.hidden = true;
+  document.querySelector("#shared-allowance").hidden = true;
+  document.querySelector("#token-allowance").hidden = true;
   document.querySelector("#demo-context").hidden = true;
   document.querySelector("#api-docs-link").hidden = true;
   accessError.hidden = !message;
@@ -154,8 +159,12 @@ async function refreshAccess() {
   const data = await requestJSON("/api/access/status", {}, 10000);
   if (data.authenticated !== true || typeof data.required !== "boolean") throw new Error("invalid_response");
   accessRequired = data.required;
+  sharedAvailable = data.shared_available !== false;
+  budgetAvailable = data.budget_available !== false;
   csrfToken = data.csrf_token || null;
   accessStatus.hidden = !accessRequired;
+  document.querySelector("#shared-allowance").hidden = !accessRequired || sharedAvailable;
+  document.querySelector("#token-allowance").hidden = !accessRequired || budgetAvailable;
   document.querySelector("#access-remaining").textContent = accessRequired ? `${data.name} · ${data.remaining_requests} questions remaining · subject to shared demo availability` : "";
   return data;
 }

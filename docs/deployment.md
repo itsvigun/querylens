@@ -11,9 +11,9 @@ recovery remain pending. Additional paid jobs/public-chat budgets require an
 explicit allowance. See [verification](verification.md) for completed checks.
 
 The author approved a shared $1/month public-chat allocation on 2026-10-11.
-It is configured on API/setup and in the database policy. At the current default
-reservation, it admits at most eight questions per UTC calendar month across
-all visitors. The author subsequently added the API's OpenAI key and redeployed;
+It is configured on API/setup and in the database policy. The deployed older
+accounting reserves USD 0.114320 per question. The new local implementation uses
+post-request cost estimates instead; apply the accounting upgrade below to enable it. The author subsequently added the API's OpenAI key and redeployed;
 adding that key alone does not change the policy fingerprint. Railway usage and explicit CLI/ingestion jobs
 are outside this allocation.
 
@@ -125,7 +125,7 @@ product and does **not** limit QueryLens's OpenAI API spending.
 [Cost controls](https://docs.railway.com/pricing/cost-control).
 
 For OpenAI use a dedicated project/key and account controls in addition to the
-application's conservative public admission policy. Ingestion, admin CLI calls
+application's request quotas and soft known-cost thresholds. Ingestion, admin CLI calls
 and local evaluation are outside the HTTP ledger and need separate explicit
 allowances. Review the dated model prices before enabling paid public traffic.
 
@@ -319,30 +319,30 @@ PUBLIC_DEMO_ENABLED=true docker compose run --rm demo-policy \
 ## Shared admission and recovery
 
 [`app/demo_gate.py`](../app/demo_gate.py) uses a PostgreSQL transaction advisory
-lock across all workers/replicas. Before any provider call it checks an explicitly
-configured policy, global active leases, a fixed UTC-minute request window and
-the current UTC-month allocation. It atomically adds the reservation and lease.
-At defaults, one question reserves **$0.114320** (114320 micro-USD): 128000 input
-bytes at $0.75/M, 4000 output tokens at $4.50/M, and 16000 embedding bytes at $0.02/M.
-A $1 monthly allocation admits at most eight such questions, regardless of their
-actual lower usage. Smaller request caps can increase this count but may exhaust
-context before a question completes.
+lock across workers/replicas. Before providers it checks policy, fixed UTC-minute
+rates, durable global leases, invitation validity, lifetime question counts and
+known-cost thresholds. Each invitation permits one active question. Admission
+increments question/rate counters and creates a lease, with **no money reserved**.
 
-Prices are versioned `openai-standard-2026-10-09` in code, based on
+After completion, full validated LLM/embedding usage is quoted in integer micro-USD
+and added atomically to token and admission-month totals while deleting the lease.
+Repeated completion is idempotent. Missing usage remains `unknown`, without a
+fabricated charge. Unknown costs do not enter the known-cost total. Requests still
+consume the lifetime question quota even after answer/provider failure.
+
+Prices are versioned `openai-standard-2026-10-09` in code, rechecked 2026-10-12 against
 [GPT-5.4 mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini),
 [small embeddings](https://developers.openai.com/api/docs/models/text-embedding-3-small)
 and [large embeddings](https://developers.openai.com/api/docs/models/text-embedding-3-large).
-Reservation uses UTF-8 byte/token bounds and the existing protocol allowance,
-counts attempts with zero SDK retries, and ignores cached discounts. This is a
-conservative admission allocation, **not a provider invoice or account billing
-guarantee**; price changes, taxes or other callers require separate accounting.
+The Responses adapter requests the standard service tier; cached discounts are
+ignored. This is a conservative usage estimate, not an invoice/account balance.
+Money thresholds are soft: the final admitted request(s) can cross them, and unknown
+usage/other callers are not covered. Input/output/tool/deadline limits remain.
 
-Unused reserves are never refunded, including provider failures and lost usage.
-Completed requests delete their lease; crashes/failed cleanup leave it durable
-and block later traffic until recovery. There is no automatic lease expiry because
-cooperative deadlines cannot prove that a provider request stopped. An API restart
-does not reset rate counts or monthly reservations. Global limits do not identify
-individual clients; one visitor can exhaust the shared demo allowance.
+Crashes or failed accounting leave the durable concurrency lease and require
+explicit recovery; no automatic expiry assumes the provider has stopped. API
+restart preserves sessions, counters and known-cost totals. Old reserves are kept
+as historical values after migration and excluded from the new known-cost sums.
 
 HTTP 429 distinguishes busy/rate/budget failures; rate/busy responses include
 `Retry-After`. Policy/storage failures use HTTP 503. The UI displays fixed messages
@@ -351,7 +351,7 @@ before parsing, including chunked bodies; questions still have the 2000-byte lim
 The ledger stores request IDs/timestamps/counters, never questions, SQL or secrets.
 
 After a crash, stop **all** API workers first, inspect leases as administrator,
-and release only the stale request ID. Keep its charge:
+and release only the stale request ID. Its usage is marked unknown:
 
 ```bash
 python -m scripts.demo_policy --status
@@ -402,8 +402,8 @@ Do the following before deploying the new source to an existing database:
 2. Use the new source with owner credentials through the private SSH tunnel or an
    explicit owner-only job. Run `alembic upgrade head`, then
    `python -m scripts.provision_roles` with the existing four hosted role passwords.
-   Apply `0005_invitation_access`; do not run seed/ingest or recreate the policy.
-   Reconfiguring is needed only if its budget/provider settings actually change.
+   Apply through `0006_post_request_usage`; do not run seed/ingest. Configure the
+   new accounting policy explicitly with matching API settings after migration.
 3. On `querylens`, retain `PUBLIC_DEMO_ENABLED=true`, the existing USD 1 allocation,
    readers/control credentials and key. Set `TOKEN_ACCESS_REQUIRED=true`,
    `ACCESS_COOKIE_SECURE=true`, and
@@ -421,8 +421,77 @@ Do the following before deploying the new source to an existing database:
 6. Verify logout and revocation using an expendable invitation, and check its
    metadata/usage report. Re-enable automatic deployments once the gate is verified.
 
-Fresh setup jobs naturally apply all five migrations before provisioning. Existing
+Fresh setup jobs naturally apply all six migrations before provisioning. Existing
 hosted ingestion does not need repeating: the business corpus/vector space is
 unchanged. Invitation limits nest under the shared global monthly cap, and
 updates preserve prior usage. API restart preserves sessions and counters in
 PostgreSQL. The complete hosted restart/backup/AI acceptance remains required.
+
+### Upgrade using the existing Railway setup service
+
+For the invitation upgrade, use the existing `setup` service with its owner and
+four existing role passwords. Stop/drain `querylens` first. Keep `db` running
+and preserve its volume. Do not delete the `setup` service while API/ingestion
+variables reference its secrets.
+
+In Railway, select production and `setup` → Settings → Deploy. Set Start Command:
+
+```bash
+/bin/sh -c "python -m alembic upgrade head && python -m scripts.provision_roles && python -m scripts.demo_policy --configure && python -m alembic current"
+```
+
+The explicit shell is required for chaining commands in a Dockerfile service;
+[Railway start-command behavior](https://docs.railway.com/deployments/start-command).
+Keep Restart Policy Never, no HTTP domain/healthcheck and automatic deployments
+disabled. Existing `setup` DB references and role passwords stay unchanged.
+This runs migration/provisioning/policy configuration/version inspection, with
+no seed, ingestion or provider call. Setup and API provider/budget settings must match.
+
+From the linked repository terminal, deploy latest source rather than the old image:
+
+```bash
+railway redeploy --service setup --environment production --from-source
+```
+
+Require the deployment to use the intended revision containing the new accounting,
+exit successfully, report provisioned roles and show `0006_post_request_usage (head)`.
+Only then configure the API's secure invitation settings and run:
+
+```bash
+railway redeploy --service querylens --environment production --from-source
+```
+
+On this account, plain Redeploy has previously reused the old source/image.
+The installed Railway CLI supports `--from-source`; in the dashboard use
+[Deploy Latest Commit](https://docs.railway.com/deployments/deployment-actions)
+instead of assuming Redeploy picks up the new commit. Confirm the effective
+commit in each deployment. Follow the readiness/auth/token steps above afterward.
+
+
+## Post-request accounting upgrade
+
+This local change replaces permanent reserves and the unshipped refund prototype.
+Do not deploy the API before upgrading the DB and its policy. Keep the shared
+monthly budget at the existing USD 1; USD 100 was discussed but not selected.
+
+1. Stop/drain every API worker, keeping `db` and its volume. Inspect old leases with
+   the currently deployed owner CLI; if a worker crashed, use its explicit stale
+   recovery command only after all workers are stopped. Migration refuses active leases.
+2. Deploy the **new source** to `setup` with the upgrade Start Command above and
+   existing owner/four role passwords. Keep `PUBLIC_DEMO_ENABLED=true`, monthly USD 1
+   and provider/rate/concurrency settings matching the API. Apply pending dashboard
+   settings before starting the one-shot job; use Never restart policy.
+3. Require success/head `0006_post_request_usage`, updated role grants and configured
+   policy. Old monetary reserves are archived rather than counted as new usage;
+   codes, sessions, used questions and rate history are retained. No seed/ingest/reset.
+4. Deploy `querylens` from the same new source with its existing readers/control/key,
+   protected HTTPS origin and token settings. Check readiness/access and log in with
+   an existing code. These checks need no paid call.
+5. Use `scripts.demo_policy --status` and `scripts.access_tokens usage TOKEN_ID`
+   through the private owner tunnel to inspect known cost, unknown requests and legacy
+   reserves. New invitations default to 10 questions/USD 1; update existing ones
+   explicitly if their issued limits differ. They keep their credentials and counters.
+
+No reserve reconciliation script is required. This upgrade starts measured-cost
+accounting from migration time and does not claim to reconstruct earlier invoices.
+See [access.md](access.md) for the soft-threshold/unknown-usage limitations.

@@ -126,22 +126,22 @@ def test_parallel_gates_cannot_exceed_a_token_lifetime_request_quota(access_db, 
     with ThreadPoolExecutor(max_workers=4) as pool:
         results = list(pool.map(attempt, range(4)))
     assert results.count("access_request_limit") == 3
-    assert status(owner)["months"][0]["charged_micro_usd"] == configured.request_micro_usd
+    assert status(owner)["months"][0]["charged_micro_usd"] == 0
     report = token_usage(owner, tid)
     assert report["token"]["admitted_requests"] == 1
-    assert report["token"]["reserved_micro_usd"] == configured.request_micro_usd
+    assert report["token"]["reserved_micro_usd"] == 0
     assert len(report["requests"]) == 1 and report["requests"][0]["completed_at"] is None
     assert store.status(identity, configured)["remaining_requests"] == 0
     release_stale(owner, next(value for value in results if value != "access_request_limit"))
     report = token_usage(owner, tid)
     assert report["requests"][0]["summary"]["error_category"] == "request_interrupted"
-    assert report["token"]["reserved_micro_usd"] == configured.request_micro_usd
+    assert report["token"]["reserved_micro_usd"] == 0
 
 
 @pytest.mark.parametrize(
     "options,error",
     [
-        ({"budget_usd": Decimal("0.114320")}, "access_budget_exhausted"),
+        ({"budget_usd": Decimal("0.0074")}, "access_budget_exhausted"),
         ({"requests_per_minute": 1}, "access_rate_limit"),
     ],
 )
@@ -154,7 +154,9 @@ def test_token_budget_and_rate_denials_roll_back_global_and_token_counters(
     gate = DemoGate(control, configured)
     first = uuid4().hex
     gate.admit(first, identity=identity)
-    gate.release(first)
+    from tests.test_costs import reported_usage
+
+    gate.release(first, result=reported_usage())
     before = status(owner)
     with pytest.raises(AdmissionError, match=error):
         gate.admit(uuid4().hex, identity=identity)
@@ -268,12 +270,12 @@ def test_usage_audit_is_durable_sanitized_and_counts_failed_admitted_requests(ac
         admitted["summary"]["llm_requests"] == 2
         and admitted["summary"]["error_category"] == "ungrounded_answer"
     )
-    assert admitted["reserved_micro_usd"] == configured.request_micro_usd
+    assert admitted["reserved_micro_usd"] == 0
     assert all(row["completed_at"] is not None for row in report["requests"])
     update_token(owner, tid, {"max_requests": 10, "budget_usd": "1", "name": "Renamed company"})
     after = token_usage(owner, tid)["token"]
     assert after["name"] == "Renamed company" and after["admitted_requests"] == 1
-    assert after["reserved_micro_usd"] == configured.request_micro_usd
+    assert after["reserved_micro_usd"] == 0
 
 
 def test_runtime_role_cannot_issue_revoke_or_change_policy_and_readers_cannot_read_tokens(
@@ -345,6 +347,275 @@ def test_real_http_access_readiness_failed_request_accounting_and_safe_attributi
         assert report["token"]["admitted_requests"] == 1
         assert report["requests"][0]["request_id"] == response.headers["x-request-id"]
         assert report["requests"][0]["summary"]["error_category"] == "missing_api_key"
-        assert report["requests"][0]["reserved_micro_usd"] == configured.request_micro_usd
+        assert report["requests"][0]["reserved_micro_usd"] == 0
         assert status(owner)["leases"] == []
-        assert status(owner)["months"][0]["charged_micro_usd"] == configured.request_micro_usd
+        assert status(owner)["months"][0]["charged_micro_usd"] == 0
+
+
+def test_post_request_usage_is_counted_atomically_once_and_audit_preserves_receipt(
+    access_db, tmp_path
+):
+    from tests.test_costs import reported_usage
+
+    owner, control, configured = access_db
+    tid, credential, _, _ = issue(owner, tmp_path, budget_usd="0.114320")
+    store, gate = AccessStore(control), DemoGate(control, configured)
+    identity = store.authenticate(credential)
+    request = uuid4().hex
+    gate.admit(request, identity=identity)
+    assert token_usage(owner, tid)["requests"][0]["usage_state"] == "pending"
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        list(pool.map(lambda _: gate.release(request, result=reported_usage()), range(2)))
+    gate.release(request, result=reported_usage())
+    report = token_usage(owner, tid)
+    assert report["token"]["admitted_requests"] == 1
+    assert report["token"]["reserved_micro_usd"] == 0
+    assert report["token"]["charged_micro_usd"] == 7400
+    assert report["requests"][0]["charged_micro_usd"] == 7400
+    assert report["requests"][0]["usage_state"] == "recorded"
+    assert status(owner)["months"][0]["charged_micro_usd"] == 7400
+    assert status(owner)["leases"] == []
+    assert store.status(identity, configured)["remaining_requests"] == 9
+    assert report["requests"][0]["summary"]["billing_usage"]["input_tokens"] == 7232
+    assert store.audit(identity, request, {"status": "error", **reported_usage()}, 100, 200)
+    assert (
+        token_usage(owner, tid)["requests"][0]["summary"]["billing_usage"]["usage_complete"] is True
+    )
+
+
+@pytest.mark.parametrize("failure", ["missing", "embedding", "model"])
+def test_unknown_usage_has_no_invented_charge_and_cannot_be_counted_twice(
+    access_db, tmp_path, failure
+):
+    from tests.test_costs import reported_usage
+
+    owner, control, configured = access_db
+    tid, credential, _, _ = issue(owner, tmp_path)
+    gate = DemoGate(control, configured)
+    identity = AccessStore(control).authenticate(credential)
+    request = uuid4().hex
+    result = reported_usage()
+    if failure == "missing":
+        result = None
+    elif failure == "embedding":
+        result["embedding_usage"]["usage_complete"] = False
+    else:
+        result["usage"]["model"] = "unknown-model"
+    gate.admit(request, identity=identity)
+    gate.release(request, result=result)
+    gate.release(request, result=reported_usage())
+    assert status(owner)["months"][0]["charged_micro_usd"] == 0
+    report = token_usage(owner, tid)
+    assert report["token"]["unknown_requests"] == 1
+    assert report["requests"][0]["charged_micro_usd"] is None
+    assert report["requests"][0]["usage_state"] == "unknown"
+    assert status(owner)["months"][0]["unknown_requests"] == 1
+
+
+def test_shared_availability_explains_exhaustion_even_with_fresh_token_quota(access_db, tmp_path):
+    owner, control, configured = access_db
+    configured = policy(public_chat_monthly_budget_usd="0")
+    configure(owner, configured)
+    _, credential, _, _ = issue(owner, tmp_path)
+    store = AccessStore(control)
+    data = store.status(store.authenticate(credential), configured)
+    assert data["remaining_requests"] == 10 and data["shared_available"] is False
+
+
+def test_failed_accounting_rolls_back_cost_and_preserves_crash_lease(access_db, tmp_path):
+    from tests.test_costs import reported_usage
+
+    owner, control, configured = access_db
+    tid, credential, _, _ = issue(owner, tmp_path)
+    gate = DemoGate(control, configured)
+    request = uuid4().hex
+    gate.admit(request, identity=AccessStore(control).authenticate(credential))
+    with owner.begin() as connection:
+        connection.execute(
+            text(
+                "REVOKE UPDATE (charged_micro_usd,usage_state) "
+                "ON operations.access_requests FROM querylens_demo_control"
+            )
+        )
+    try:
+        with pytest.raises(AdmissionError, match="demo_controls_unavailable"):
+            gate.release(request, result=reported_usage())
+        assert status(owner)["months"][0]["charged_micro_usd"] == 0
+        assert len(status(owner)["leases"]) == 1
+        assert token_usage(owner, tid)["token"]["charged_micro_usd"] == 0
+        assert AccessStore(control).ready() is False
+    finally:
+        with owner.begin() as connection:
+            connection.execute(
+                text(
+                    "GRANT UPDATE (charged_micro_usd,usage_state) "
+                    "ON operations.access_requests TO querylens_demo_control"
+                )
+            )
+
+
+def test_small_actual_quotes_allow_more_than_eight_questions_without_raising_one_dollar(
+    access_db, tmp_path
+):
+    from tests.test_costs import reported_usage
+
+    owner, control, configured = access_db
+    configured = policy(public_chat_monthly_budget_usd="1", public_chat_requests_per_minute=60)
+    configure(owner, configured)
+    tid, credential, _, _ = issue(owner, tmp_path, max_requests=10, requests_per_minute=60)
+    store, gate = AccessStore(control), DemoGate(control, configured)
+    identity = store.authenticate(credential)
+    for _ in range(10):
+        request = uuid4().hex
+        gate.admit(request, identity=identity)
+        gate.release(request, result=reported_usage())
+    assert token_usage(owner, tid)["token"]["admitted_requests"] == 10
+    assert status(owner)["months"][0]["charged_micro_usd"] == 74000
+    assert store.status(identity, configured)["remaining_requests"] == 0
+    with pytest.raises(AdmissionError, match="access_request_limit"):
+        gate.admit(uuid4().hex, identity=identity)
+
+
+def test_one_active_question_per_token_does_not_block_other_tokens(access_db, tmp_path):
+    owner, control, configured = access_db
+    tid, credential, _, _ = issue(owner, tmp_path, requests_per_minute=60)
+    _, other, _, _ = issue(owner, tmp_path)
+    store, gate = AccessStore(control), DemoGate(control, configured)
+    identity = store.authenticate(credential)
+    first = uuid4().hex
+    gate.admit(first, identity=identity)
+    with ThreadPoolExecutor(max_workers=3) as pool:
+
+        def attempt(_):
+            with pytest.raises(AdmissionError, match="access_busy"):
+                DemoGate(control, configured).admit(uuid4().hex, identity=identity)
+
+        list(pool.map(attempt, range(3)))
+    second = uuid4().hex
+    gate.admit(second, identity=store.authenticate(other))
+    assert token_usage(owner, tid)["token"]["admitted_requests"] == 1
+    assert status(owner)["months"][0]["charged_micro_usd"] == 0
+    gate.release(first)
+    gate.release(second)
+
+
+def test_last_question_can_cross_soft_budget_then_next_is_denied(access_db, tmp_path):
+    from tests.test_costs import reported_usage
+
+    owner, control, configured = access_db
+    tid, credential, _, _ = issue(owner, tmp_path, budget_usd="0.001")
+    store, gate = AccessStore(control), DemoGate(control, configured)
+    identity = store.authenticate(credential)
+    request = uuid4().hex
+    gate.admit(request, identity=identity)
+    assert token_usage(owner, tid)["token"]["charged_micro_usd"] == 0
+    gate.release(request, result=reported_usage())
+    assert token_usage(owner, tid)["token"]["charged_micro_usd"] == 7400
+    assert store.status(identity, configured)["budget_available"] is False
+    assert store.status(identity, configured)["remaining_requests"] == 9
+    before = status(owner)
+    with pytest.raises(AdmissionError, match="access_budget_exhausted"):
+        gate.admit(uuid4().hex, identity=identity)
+    assert status(owner) == before
+
+
+def test_usage_is_attributed_to_admission_month_even_when_completion_is_later(access_db, tmp_path):
+    from tests.test_costs import reported_usage
+
+    owner, control, configured = access_db
+    tid, credential, _, _ = issue(owner, tmp_path)
+    gate = DemoGate(control, configured)
+    request = uuid4().hex
+    gate.admit(request, identity=AccessStore(control).authenticate(credential))
+    with owner.begin() as connection:
+        connection.execute(
+            text(
+                "INSERT INTO "
+                "operations.demo_months(month,charged_micro_usd,rate_minute,rate_count) "
+                "SELECT (month-interval '1 "
+                "month')::date,0,rate_minute,0 FROM operations.demo_months"
+            )
+        )
+        connection.execute(
+            text("UPDATE operations.demo_leases SET month=(month-interval '1 month')::date")
+        )
+    gate.release(request, result=reported_usage())
+    months = status(owner)["months"]
+    assert [row["charged_micro_usd"] for row in months] == [0, 7400]
+    assert token_usage(owner, tid)["token"]["charged_micro_usd"] == 7400
+
+
+def test_migration_archives_old_reserves_without_resetting_tokens_or_request_counts(
+    access_db, tmp_path
+):
+    from alembic import command
+    from alembic.config import Config
+
+    from scripts.provision_roles import RolePasswords, provision_roles
+
+    owner, control, configured = access_db
+    tid, credential, _, _ = issue(owner, tmp_path)
+    request = uuid4().hex
+    config = Config("alembic.ini")
+    try:
+        command.downgrade(config, "0005_invitation_access")
+        with owner.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO "
+                    "operations.demo_months(month,charged_micro_usd,rate_minute,rate_count) "
+                    "VALUES(date_trunc('month',clock_timestamp() AT TIME ZONE 'UTC')::date,"
+                    "914560,clock_timestamp(),8)"
+                )
+            )
+            connection.execute(
+                text(
+                    "UPDATE operations.access_usage SET "
+                    "admitted_requests=1,reserved_micro_usd=114320 "
+                    "WHERE token_id=:id"
+                ),
+                {"id": tid},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO operations.access_requests(request_id,token_id,created_at,"
+                    "reserved_micro_usd,summary) "
+                    "VALUES(:request,:token,clock_timestamp(),114320,'{}')"
+                ),
+                {"request": request, "token": tid},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO operations.demo_leases(request_id,admitted_at,month) "
+                    "SELECT :id,clock_timestamp(),month FROM operations.demo_months"
+                ),
+                {"id": request},
+            )
+        with pytest.raises(RuntimeError, match="Stop/drain"):
+            command.upgrade(config, "head")
+        with owner.begin() as connection:
+            assert (
+                connection.scalar(text("SELECT charged_micro_usd FROM operations.demo_months"))
+                == 914560
+            )
+            connection.execute(
+                text("DELETE FROM operations.demo_leases WHERE request_id=:id"), {"id": request}
+            )
+        command.upgrade(config, "head")
+        provision_roles(Settings(), RolePasswords())
+        month = status(owner)["months"][0]
+        assert month["legacy_reserved_micro_usd"] == 914560
+        assert month["charged_micro_usd"] == 0 and month["rate_count"] == 8
+        report = token_usage(owner, tid)
+        assert report["token"]["reserved_micro_usd"] == 114320
+        assert report["token"]["admitted_requests"] == 1
+        assert report["requests"][0]["usage_state"] == "legacy"
+        assert report["requests"][0]["charged_micro_usd"] is None
+        identity = AccessStore(control).authenticate(credential)
+        assert AccessStore(control).status(identity, configured)["remaining_requests"] == 9
+        fresh = uuid4().hex
+        DemoGate(control, configured).admit(fresh, identity=identity)
+        DemoGate(control, configured).release(fresh)
+    finally:
+        command.upgrade(config, "head")
+        provision_roles(Settings(), RolePasswords())

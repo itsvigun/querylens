@@ -20,7 +20,8 @@ PostgreSQL admission controls. The Railway UI, Swagger, dataset metadata and DB
 readiness are publicly verified, and live ingestion stored 25 knowledge chunks.
 Full live AI [deployment acceptance](deployment.md) remains pending. Named
 [invitation access](access.md), per-token quotas and durable usage audit are
-implemented locally; their hosted rollout is pending.
+deployed with author-confirmed hosted login. The new post-request accounting
+change is locally verified and needs its separate hosted migration/policy rollout.
 
 ## Request and data flow
 
@@ -69,8 +70,10 @@ IDs. This establishes provenance, not semantic correctness of SQL, labels or pro
 Segment contributions do not establish causality. Deadlines are cooperative;
 returned-byte limits are not database memory/work limits. Per-process concurrency
 is supplemented in public mode by a PostgreSQL gate shared across workers: fixed
-minute request limits, durable active leases and conservative monthly cost reservations.
-Unknown usage never refunds a reservation; crashes require explicit recovery.
+minute request limits, durable active leases and soft known-cost thresholds.
+Invitations default to 10 questions, one active question and USD 1 lifetime known
+cost. No money is reserved; partial usage is unknown and crashes require explicit
+recovery. These thresholds are not complete provider-spend guarantees.
 The evaluation suite has explicit scripted/stub and live modes; the stage 7 baseline
 does not establish semantic model accuracy. See [deployment controls](deployment.md).
 
@@ -87,8 +90,9 @@ does not establish semantic model accuracy. See [deployment controls](deployment
 | [`app/llm/`](../app/llm) | Responses adapter, prompt/contracts, per-question graph and answer grounding |
 | [`app/access.py`](../app/access.py), [`app/api/access.py`](../app/api/access.py) | Hashed invitations/sessions, HTTP authentication, CSRF and bounded audit |
 | [`scripts/access_tokens.py`](../scripts/access_tokens.py) | Owner-only invitation creation, quota updates, revocation and usage reports |
-| [`app/demo_gate.py`](../app/demo_gate.py), [`app/db/operations.py`](../app/db/operations.py) | Public admission policy, global rate/concurrency and durable budget reservations |
+| [`app/demo_gate.py`](../app/demo_gate.py), [`app/db/operations.py`](../app/db/operations.py) | Public admission, rate/concurrency and post-request usage accounting |
 | [`railway.toml`](../railway.toml), [`deploy/`](../deploy) | API and explicit job configuration; no service provisioning or secrets |
+| [`app/costs.py`](../app/costs.py) | Validated standard-price usage estimates in micro-USD |
 | [`app/observability.py`](../app/observability.py) | Allowlisted JSON summaries and request ID context |
 | [`evals/`](../evals) | Versioned synthetic questions, scripted provider and value/source graders |
 | [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) | Offline, PostgreSQL and browser CI with an evaluation artifact |

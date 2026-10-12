@@ -232,7 +232,8 @@ def provision_roles(settings: Settings, passwords: RolePasswords) -> None:
                 )
                 cursor.execute(
                     sql.SQL(
-                        "GRANT UPDATE (completed_at, summary) ON operations.access_requests TO {}"
+                        "GRANT UPDATE (completed_at, summary, charged_micro_usd, usage_state) "
+                        "ON operations.access_requests TO {}"
                     ).format(role)
                 )
 

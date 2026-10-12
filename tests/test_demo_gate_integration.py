@@ -1,4 +1,4 @@
-"""Real shared reservations, race admission, crash recovery and PostgreSQL ACLs."""
+"""Real shared admission and usage, race admission, crash recovery and PostgreSQL ACLs."""
 
 import os
 from concurrent.futures import ThreadPoolExecutor
@@ -69,29 +69,33 @@ def test_atomic_race_across_independent_gates_and_persisted_charge(engines):
     winner = next(result for result in results if result != "demo_busy")
     snapshot = status(owner)
     assert len(snapshot["leases"]) == 1
-    assert snapshot["months"][0]["charged_micro_usd"] == configured.request_micro_usd
+    assert snapshot["months"][0]["charged_micro_usd"] == 0
     with pytest.raises(ValueError, match="Active leases"):
         configure(owner, configured)
     with pytest.raises(AdmissionError, match="demo_busy"):
         DemoGate(control, configured).admit(uuid4().hex)
     release_stale(owner, winner)
-    assert status(owner)["months"][0]["charged_micro_usd"] == configured.request_micro_usd
+    assert status(owner)["months"][0]["charged_micro_usd"] == 0
+    assert status(owner)["months"][0]["unknown_requests"] == 1
     fresh = uuid4().hex
     DemoGate(control, configured).admit(fresh)
     DemoGate(control, configured).release(fresh)
     assert len(status(owner)["leases"]) == 0
-    assert status(owner)["months"][0]["charged_micro_usd"] == configured.request_micro_usd * 2
+    assert status(owner)["months"][0]["unknown_requests"] == 2
+    assert status(owner)["months"][0]["charged_micro_usd"] == 0
 
 
 def test_monthly_budget_rate_window_and_policy_changes_do_not_reset_charges(engines):
     owner, control = engines
     configured = policy(public_chat_monthly_budget_usd="1", public_chat_requests_per_minute=1)
-    configured = replace(configured, monthly_micro_usd=configured.request_micro_usd)
+    configured = replace(configured, monthly_micro_usd=7400)
     configure(owner, configured)
     gate = DemoGate(control, configured)
     first = uuid4().hex
     gate.admit(first)
-    gate.release(first)
+    from tests.test_costs import reported_usage
+
+    gate.release(first, result=reported_usage())
     with pytest.raises(AdmissionError, match="demo_rate_limit"):
         gate.admit(uuid4().hex)
     with owner.begin() as connection:
@@ -102,7 +106,7 @@ def test_monthly_budget_rate_window_and_policy_changes_do_not_reset_charges(engi
         gate.admit(uuid4().hex)
     assert status(owner)["months"][0]["rate_count"] == 1
     configure(owner, configured)
-    assert status(owner)["months"][0]["charged_micro_usd"] == configured.request_micro_usd
+    assert status(owner)["months"][0]["charged_micro_usd"] == 7400
     with pytest.raises(AdmissionError, match="demo_policy_mismatch"):
         DemoGate(control, replace(configured, fingerprint="different-policy")).admit(uuid4().hex)
 
@@ -205,7 +209,7 @@ def test_new_utc_month_has_separate_allocation_and_keeps_old_charge(engines):
     gate.release(request_id)
     months = status(owner)["months"]
     assert len(months) == 2
-    assert all(row["charged_micro_usd"] == configured.request_micro_usd for row in months)
+    assert all(row["charged_micro_usd"] == 0 for row in months)
 
 
 def test_locked_admission_times_out_without_charging(engines):

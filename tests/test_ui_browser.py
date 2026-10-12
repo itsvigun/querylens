@@ -474,3 +474,23 @@ def test_invitation_entry_is_visible_when_script_fails_to_load(ui_server, browse
         assert state["calls"] == calls_before
     finally:
         context.close()
+
+
+@pytest.mark.parametrize(
+    "field,notice",
+    [("shared_available", "#shared-allowance"), ("budget_available", "#token-allowance")],
+)
+def test_budget_unavailable_is_visible_before_submission(invited_ui, monkeypatch, field, notice):
+    from playwright.sync_api import expect
+
+    page, state, store = invited_ui
+    original = store.status
+    monkeypatch.setattr(store, "status", lambda *args: {**original(*args), field: False})
+    page.get_by_label("Access code", exact=True).fill(store.token)
+    page.get_by_role("button", name="Open workspace").click()
+    expect(page.locator("#workspace")).to_be_visible()
+    expect(page.locator(notice)).to_be_visible()
+    expect(page.locator("#access-remaining")).to_contain_text("5 questions remaining")
+    page.get_by_label("Your question", exact=True).fill("Revenue in September?")
+    expect(page.get_by_role("button", name="Ask QueryLens")).to_be_disabled()
+    assert not state["calls"]

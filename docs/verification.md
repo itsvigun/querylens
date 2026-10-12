@@ -707,3 +707,124 @@ author and has not been performed as
 part of this push. Apply `0005` and re-provision existing hosted roles with the
 new source before the API can become ready. Neither local/hosted shared budget
 was raised; the local-only USD 1.20 allocation question remains unanswered.
+
+## Existing-service rollout instructions — 2026-10-12
+
+Read-only Railway status while answering the author's deployment question showed
+`querylens` SUCCESS on `cd1a7ea` with `python -m scripts.serve`, `setup` SUCCESS
+on `046f786` with `python -m scripts.deploy_setup`, and the existing pgvector DB
+and completed ingestion services. No variables/secrets were printed. The previous
+interrupted status read was collected and filtered without a mutation.
+
+Reviewed installed CLI help for `redeploy --from-source` and official Railway
+start-command/deployment-action docs. Added the existing-setup Start Command
+for explicit migration, provisioning and current-version inspection, and commands
+to deploy latest source. These are instructions, not executed hosted migration
+or deployment acceptance. No service, variable, DB, budget or provider was changed.
+Docs diff/link checks passed; application code unchanged, tests not repeated.
+The guide/evidence changes are local and uncommitted after feature push `22cd484`.
+
+## User-run hosted setup upgrade observed — 2026-10-12
+
+After the author ran rollout step 4 and supplied a screenshot, read-only CLI
+metadata confirmed `setup` deployment `598ea4d2-da07-43fa-ae58-f44b678c3af0`
+SUCCESS on feature commit `22cd484`. Its effective Start Command was still
+`python -m scripts.deploy_setup`; the dashboard's edited upgrade command was
+staged but not applied. Deployment logs exposed fixed top-level structured
+fields: migrate/provision/seed/verify/policy all reported `ok`. Only these fixed
+summaries were printed; raw logs/secrets were excluded.
+
+The user-run full job therefore completed migration/provisioning with new source,
+along with its repeatable foundation checks/policy configuration. It was not a
+migration run by the agent. Current `querylens` latest deployment is absent after
+the author's stop; protected API deployment/readiness/auth remain pending. The
+pending setup command should be applied for subsequent upgrade-only runs.
+No provider, remote configuration or DB mutation was performed by the agent;
+actual counters/AI behavior were not inspected in this read-only check.
+
+## Hosted monthly allowance denial — 2026-10-12
+
+The author successfully entered a newly issued production invitation and then
+reported a revenue request denied with `demo_budget_exhausted`. Read-only scoped
+API-variable inspection showed invitation access/shared admission enabled and
+`PUBLIC_CHAT_MONTHLY_BUDGET_USD=1`; unset provider budgets use existing defaults.
+Owner `scripts.demo_policy --status` over the author's existing private tunnel
+confirmed October reservations 914560 micro-USD and zero active leases: eight
+previous admissions, last minute 2026-10-11 19:41 UTC. Remaining 85440 micro-USD
+cannot cover the next default 114320 reservation. A new token allowance does not
+reset the shared ledger. These amounts are reservations, not actual provider bills.
+
+Asked the author to choose an increased hosted allocation (USD 7 leaves capacity
+for 53 new default admissions, enough for five ten-question invitations; USD 2
+leaves nine) or retain USD 1 until the next UTC month. No policy/counter/configuration
+change or paid query was made. A budget increase requires stopped/drained API
+workers, matching API/setup variables and explicit owner policy configuration;
+charges must be preserved. Documentation-only checks need no test rerun.
+
+
+## Post-request accounting without monetary reserves — 2026-10-12
+
+At the author's explicit request, replaced monetary admission reservations with
+10-question invitation defaults, USD 1 lifetime known-cost thresholds, one active
+question per code and post-request usage estimates. Retained the approved shared
+USD 1/month configuration; USD 100 was discussed but not selected. The unfinished
+local reserve/refund prototype and legacy reconciliation script were discarded;
+neither had been deployed or applied to production.
+
+Migration `0006_post_request_usage` preserves tokens/sessions/used-question/rate
+history and copies previous global reserves to `legacy_reserved_micro_usd`.
+Measured-cost totals start at migration time; this is not reconstruction of old
+invoices. Runtime admission never changes monetary totals. Complete LLM/embedding
+usage adds a rounded standard uncached estimate once in the completion transaction;
+unknown usage has NULL request cost and an explicit counter. Failures with known
+consumption still cost money; crashes retain concurrency until owner recovery.
+Updated grants, reports, UI notices and guides. Money thresholds are soft and
+can be crossed by the final admitted request(s).
+
+Actual checks:
+
+- Ruff lint/format (87 Python files), JavaScript syntax and diff checks passed.
+- Full offline suite: **292 passed**, independent of DB and paid keys.
+- Fresh disposable PostgreSQL 17/pgvector setup: migration, role provisioning,
+  deterministic seed, control values and Alembic drift passed; **101 integration
+  tests passed**. After adding migration drain/rollback assertions, repeated this
+  setup/group successfully. The temporary container was removed each time.
+- Full labeled offline Chromium suite: **33 passed**. After notice styling changed,
+  the two personal/shared-budget browser cases were repeated successfully.
+- Tests establish no financial reservation at admission, exact usage quotes,
+  idempotent concurrent completion, soft-budget overshoot followed by denial,
+  unknown usage, rollback on missing UPDATE permission, ten-question enforcement,
+  one active request per invitation, original-month attribution and legacy-data
+  preservation. The migration refuses active leases without partial ledger changes.
+- An initial test collection failed after the old embedding-byte constant was
+  removed with reservation code. Moved that unchanged provider input limit into
+  the service module; the subsequent complete groups above passed.
+
+Built the local production image, stopped/drained only the local Compose API,
+applied `0006`, provisioned existing roles, configured the new policy with the
+unchanged shared USD 1 threshold, and recreated the API healthy. No local seed,
+ingestion, credential replacement, question-counter reset or paid call occurred.
+Read-only HTTP checks returned readiness 200/all four checks and authenticated
+status with nine questions, personal/shared budgets available. The local old
+114320 micro-USD reservation is archived; new known cost is zero. Existing local
+invitation limits (10 questions/USD 1.20) were preserved; new codes default to USD 1.
+Actual-localhost Chromium login/logout passed at 1440 and 390 pixels, no overflow
+or page errors, and zero chat POST/provider calls. Sessions/credentials remain
+compatible. Local Alembic drift and lockfile checks also passed.
+
+Application/docs changes are uncommitted. No Railway service, hosted schema,
+financial policy/counter or OpenAI account was changed. Hosted accounting still
+needs the documented stop/drain → new setup migration/grants/policy → API rollout.
+Production invitation login was previously confirmed by the author; complete
+stage 8 AI/restart/backup acceptance remains pending.
+
+
+## Post-request accounting commit preflight — 2026-10-12
+
+At the author's explicit commit/push request, Ruff lint/format (87 Python files),
+JavaScript syntax and diff checks passed again. Source behavior is unchanged from
+the preceding 292 offline, 101 PostgreSQL and 33 browser checks, so those results
+remain applicable and the suites were not repeated. Local plan, environments and
+invitation files are ignored. Production accounting rollout remains a separate
+migration/grants/policy step before API deployment; pushing code does not establish
+hosted acceptance.

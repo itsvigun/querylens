@@ -2,7 +2,6 @@
 
 import json
 from dataclasses import dataclass
-from decimal import ROUND_CEILING, Decimal
 from hashlib import sha256
 from uuid import UUID
 
@@ -10,17 +9,8 @@ from sqlalchemy import Engine, text
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.config import EmbeddingSettings, LLMSettings, PublicDemoSettings
+from app.costs import PRICING_VERSION, usage_cost_micro_usd
 
-# Standard, uncached USD per million tokens; reviewed 2026-10-09 against official
-# model pages. No built-in paid tools, regional processing or alternate endpoints.
-PRICING_VERSION = "openai-standard-2026-10-09"
-CHAT_EMBEDDING_MAX_BYTES = 16000
-LLM_INPUT_PRICE = Decimal("0.75")
-LLM_OUTPUT_PRICE = Decimal("4.50")
-EMBEDDING_PRICES = {
-    "text-embedding-3-small": Decimal("0.02"),
-    "text-embedding-3-large": Decimal("0.13"),
-}
 LOCK = 716202608
 
 
@@ -28,31 +18,21 @@ LOCK = 716202608
 class DemoPolicy:
     fingerprint: str
     monthly_micro_usd: int
-    request_micro_usd: int
     requests_per_minute: int
     max_concurrent: int
+    embedding_model: str
 
     @classmethod
     def from_settings(
         cls, demo: PublicDemoSettings, llm: LLMSettings, embedding: EmbeddingSettings
     ):
-        # UTF-8 byte BPE bound plus the provider's per-call protocol allowance.
-        # Unknown usage/crashes never reclaim an admitted reservation. This is a
-        # conservative local allocation, not a provider invoice/account spend cap.
-        request = int(
-            (
-                llm.llm_max_input_bytes * LLM_INPUT_PRICE
-                + llm.llm_max_output_tokens * LLM_OUTPUT_PRICE
-                + CHAT_EMBEDDING_MAX_BYTES * EMBEDDING_PRICES[embedding.embedding_model]
-            ).to_integral_value(rounding=ROUND_CEILING)
-        )
         monthly = int(demo.public_chat_monthly_budget_usd * 1_000_000)
         identity = {
+            "accounting": "invitation-post-request-usage-v1",
             "pricing": PRICING_VERSION,
             "llm": llm.model_dump(exclude={"openai_api_key"}),
             "embedding_model": embedding.embedding_model,
             "monthly_micro_usd": monthly,
-            "request_micro_usd": request,
             "rate": demo.public_chat_requests_per_minute,
             "concurrency": demo.public_chat_max_concurrent,
         }
@@ -60,9 +40,9 @@ class DemoPolicy:
         return cls(
             digest,
             monthly,
-            request,
             demo.public_chat_requests_per_minute,
             demo.public_chat_max_concurrent,
+            embedding.embedding_model,
         )
 
 
@@ -93,16 +73,9 @@ class DemoGate:
                 month = now.date().replace(day=1)
                 minute = now.replace(second=0, microsecond=0)
                 if identity is not None:
-                    from app.access import reserve_access
+                    from app.access import admit_access
 
-                    reserve_access(
-                        connection,
-                        identity,
-                        request_id,
-                        now,
-                        self.policy.request_micro_usd,
-                        PRICING_VERSION,
-                    )
+                    admit_access(connection, identity, request_id, now, PRICING_VERSION)
                 connection.execute(
                     text(
                         "INSERT INTO operations.demo_months "
@@ -126,19 +99,14 @@ class DemoGate:
                     >= self.policy.max_concurrent
                 ):
                     raise AdmissionError("demo_busy", 429, 5)
-                if (
-                    state.charged_micro_usd + self.policy.request_micro_usd
-                    > self.policy.monthly_micro_usd
-                ):
+                if state.charged_micro_usd >= self.policy.monthly_micro_usd:
                     raise AdmissionError("demo_budget_exhausted", 429)
                 connection.execute(
                     text(
                         "UPDATE operations.demo_months "
-                        "SET charged_micro_usd=charged_micro_usd+:charge, "
-                        "rate_minute=:minute, rate_count=:count WHERE month=:month"
+                        "SET rate_minute=:minute, rate_count=:count WHERE month=:month"
                     ),
                     {
-                        "charge": self.policy.request_micro_usd,
                         "minute": minute,
                         "count": count + 1,
                         "month": month,
@@ -154,13 +122,80 @@ class DemoGate:
         except SQLAlchemyError, OSError:
             raise AdmissionError("demo_controls_unavailable") from None
 
-    def release(self, request_id: str):
+    def release(self, request_id: str, *, result=None):
+        """Record complete usage once, then release concurrency; never reserve money."""
         try:
             with self.engine.begin() as connection:
+                connection.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": LOCK})
+                lease = connection.execute(
+                    text("SELECT month FROM operations.demo_leases WHERE request_id=:id"),
+                    {"id": request_id},
+                ).one_or_none()
+                if lease is None:
+                    return  # Repeated completion cannot count usage twice.
+                quote = usage_cost_micro_usd(result)
+                known = (
+                    quote is not None
+                    and result["embedding_usage"]["model"] == self.policy.embedding_model
+                )
+                connection.execute(
+                    text(
+                        "UPDATE operations.demo_months SET "
+                        "charged_micro_usd=charged_micro_usd+:cost, "
+                        "unknown_requests=unknown_requests+:unknown WHERE month=:month"
+                    ),
+                    {
+                        "cost": quote if known else 0,
+                        "unknown": int(not known),
+                        "month": lease.month,
+                    },
+                )
+                record = connection.execute(
+                    text(
+                        "SELECT token_id,usage_state FROM "
+                        "operations.access_requests WHERE request_id=:id"
+                    ),
+                    {"id": request_id},
+                ).one_or_none()
+                if record is not None and record.usage_state == "pending":
+                    connection.execute(
+                        text(
+                            "UPDATE operations.access_usage SET "
+                            "charged_micro_usd=charged_micro_usd+:cost, "
+                            "unknown_requests=unknown_requests+:unknown WHERE token_id=:id"
+                        ),
+                        {
+                            "cost": quote if known else 0,
+                            "unknown": int(not known),
+                            "id": record.token_id,
+                        },
+                    )
+                    receipt = {"usage_complete": known}
+                    if known:
+                        receipt.update(
+                            model="gpt-5.4-mini",
+                            input_tokens=result["usage"]["input_tokens"],
+                            output_tokens=result["usage"]["output_tokens"],
+                            embedding_model=self.policy.embedding_model,
+                            embedding_tokens=result["embedding_usage"]["prompt_tokens"],
+                        )
+                    connection.execute(
+                        text(
+                            "UPDATE operations.access_requests SET charged_micro_usd=:cost, "
+                            "summary=summary || CAST(:billing AS jsonb), "
+                            "usage_state=:state WHERE request_id=:id"
+                        ),
+                        {
+                            "cost": quote if known else None,
+                            "state": "recorded" if known else "unknown",
+                            "id": request_id,
+                            "billing": json.dumps({"billing_usage": receipt}),
+                        },
+                    )
                 connection.execute(
                     text("DELETE FROM operations.demo_leases WHERE request_id=:id"),
                     {"id": request_id},
                 )
         except SQLAlchemyError, OSError:
-            # Leave the durable lease and charge in place, requiring admin recovery.
+            # Roll back usage and retain the lease for explicit owner recovery.
             raise AdmissionError("demo_controls_unavailable") from None

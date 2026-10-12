@@ -22,10 +22,10 @@ def policy(**changes):
     )
 
 
-def test_reservation_decimal_pricing_and_no_key_in_policy():
+def test_usage_policy_decimal_budget_and_no_key_in_policy():
     current = policy(public_chat_monthly_budget_usd="1.25")
     assert current.monthly_micro_usd == 1_250_000
-    assert current.request_micro_usd == 114_320
+    assert not hasattr(current, "request_micro_usd")
     demo = PublicDemoSettings(_env_file=None)
     base = DemoPolicy.from_settings(
         demo, LLMSettings(_env_file=None), EmbeddingSettings(_env_file=None)
@@ -72,7 +72,7 @@ class Gate:
         if self.category:
             raise AdmissionError(self.category, 429, 5)
 
-    def release(self, request_id):
+    def release(self, request_id, *, result=None):
         self.events.append(("release", request_id))
         if self.release_error:
             raise AdmissionError("demo_controls_unavailable")

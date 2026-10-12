@@ -49,6 +49,7 @@ def chat(body: ChatRequest, request: Request):
                 gate.admit(request_id)
             else:
                 gate.admit(request_id, identity=identity)
+            result = None
             try:
                 result = ask(
                     body.question,
@@ -56,7 +57,7 @@ def chat(body: ChatRequest, request: Request):
                     embedding_settings=request.app.state.embedding_settings,
                 )
             finally:
-                gate.release(request_id)
+                gate.release(request_id, result=result)
         request.state.chat_result = result
         return result
     except AdmissionError as exc:

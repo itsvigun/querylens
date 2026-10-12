@@ -27,10 +27,15 @@ demo_months = Table(
     "demo_months",
     metadata,
     Column("month", Date, primary_key=True),
+    Column("legacy_reserved_micro_usd", BigInteger, nullable=False, server_default="0"),
+    Column("unknown_requests", Integer, nullable=False, server_default="0"),
     Column("charged_micro_usd", BigInteger, nullable=False),
     Column("rate_minute", DateTime(timezone=True), nullable=False),
     Column("rate_count", Integer, nullable=False),
     CheckConstraint("charged_micro_usd >= 0 AND rate_count >= 0", name="demo_months_nonnegative"),
+    CheckConstraint(
+        "legacy_reserved_micro_usd >= 0 AND unknown_requests >= 0", name="demo_months_accounting"
+    ),
     schema="operations",
 )
 demo_leases = Table(
@@ -68,6 +73,8 @@ access_usage = Table(
     Column("token_id", String(32), ForeignKey("operations.access_tokens.id"), primary_key=True),
     Column("admitted_requests", Integer, nullable=False),
     Column("reserved_micro_usd", BigInteger, nullable=False),
+    Column("charged_micro_usd", BigInteger, nullable=False, server_default="0"),
+    Column("unknown_requests", Integer, nullable=False, server_default="0"),
     Column("rate_minute", DateTime(timezone=True)),
     Column("rate_count", Integer, nullable=False),
     Column("first_used_at", DateTime(timezone=True)),
@@ -75,6 +82,9 @@ access_usage = Table(
     CheckConstraint(
         "admitted_requests >= 0 AND reserved_micro_usd >= 0 AND rate_count >= 0",
         name="access_usage_nonnegative",
+    ),
+    CheckConstraint(
+        "charged_micro_usd >= 0 AND unknown_requests >= 0", name="access_usage_accounting"
     ),
     schema="operations",
 )
@@ -109,8 +119,16 @@ access_requests = Table(
     Column("created_at", DateTime(timezone=True), nullable=False),
     Column("completed_at", DateTime(timezone=True)),
     Column("reserved_micro_usd", BigInteger, nullable=False),
+    Column("charged_micro_usd", BigInteger),
+    Column("usage_state", String(20), nullable=False, server_default="not_admitted"),
     Column("pricing_version", String(64)),
     Column("summary", JSONB, nullable=False),
     CheckConstraint("reserved_micro_usd >= 0", name="access_requests_nonnegative"),
+    CheckConstraint(
+        "(usage_state='recorded' AND charged_micro_usd IS NOT NULL AND charged_micro_usd>=0) OR "
+        "(usage_state IN ('not_admitted','pending','unknown','legacy') "
+        "AND charged_micro_usd IS NULL)",
+        name="access_requests_accounting",
+    ),
     schema="operations",
 )

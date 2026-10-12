@@ -70,7 +70,7 @@ class OfflineGate:
         if self.error:
             raise AdmissionError(self.error, 429)
 
-    def release(self, request_id):
+    def release(self, request_id, *, result=None):
         self.events.append(("release", request_id))
 
 

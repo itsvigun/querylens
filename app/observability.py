@@ -35,6 +35,7 @@ ERRORS = (
         "access_request_limit",
         "access_budget_exhausted",
         "access_rate_limit",
+        "access_busy",
         "access_session_limit",
         "access_disabled",
         "request_interrupted",

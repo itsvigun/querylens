@@ -100,3 +100,15 @@ the control role gets token SELECT, usage SELECT/UPDATE, session SELECT/INSERT/D
 and request SELECT/INSERT with UPDATE only on summary/completion columns.
 Analytics/knowledge roles cannot read access records. The owner CLI alone changes
 invitation metadata and quotas. See [access.md](access.md).
+
+
+Migration `0006_post_request_usage` adds token/month known-cost and unknown-request
+counters, plus request `charged_micro_usd` and `usage_state`. A recorded cost can
+be zero; unknown/pending/legacy/not-admitted cost is NULL. Previous monthly charges
+are copied to `legacy_reserved_micro_usd` and excluded from new known costs; token
+and request reservation columns remain historical. Request counts/sessions/credentials
+are retained. Both migration directions refuse active leases. Downgrade preserves
+known charges alongside legacy amounts in the older ledger but loses separate
+accounting columns; a later upgrade archives those older totals again.
+Re-provision grants: runtime request UPDATE additionally includes `charged_micro_usd`
+and `usage_state`, never token identity, original reserve or pricing version.

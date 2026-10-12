@@ -129,7 +129,7 @@ QUERYLENS_INTEGRATION=1 uv run --locked pytest tests/test_demo_gate_integration.
 
 The integration fixture requires an **unused operations ledger** on the dedicated
 local test DB and refuses a populated ledger before deleting anything. It never
-clears a live/public ledger. Tests exercise atomic race admission, durable charges
+clears a live/public ledger. Tests exercise atomic race admission, durable usage totals
 and crash leases, fixed-minute limits, monthly rollover, policy changes, denied
 permissions and zero-budget public HTTP without paid calls. Browser fixtures
 exercise specific public limit messages with no automatic retries. Follow the
@@ -146,10 +146,19 @@ QUERYLENS_BROWSER=1 uv run --locked --group browser pytest tests/test_ui_browser
 
 Use a fresh migrated/provisioned/seeded disposable database: access integration
 fixtures require all operations tables to be empty and remove only their own
-records. Never target the hosted ledger. They check hashed storage, private files,
+records. Never target the hosted ledger. They check post-request usage quotes/idempotence, soft-threshold overshoot, unknown
+usage, admission-month attribution, preserved legacy migration data, one active
+question per invitation, hashed storage, private files,
 wrong/expired/revoked credentials, sessions/logout, concurrent quota admission,
 per-token/global rollback, durable audit, interrupted-request recovery, role ACLs
 and real HTTP readiness/accounting without a key/provider. Browser fixtures cover
 entry/cookie/reload/logout on desktop/mobile and revocation without retries.
 They establish access/control behavior, not semantic AI quality. Existing CI's
 three test groups include these files automatically without paid keys.
+
+
+Usage estimates are tested offline in `tests/test_costs.py`. Complete standard-price
+usage is distinct from unknown usage; cached discounts are ignored. PostgreSQL
+checks use labeled usage fixtures, not provider invoices or live quality evidence.
+Accounting changes require migration/provisioning and policy configuration before
+API startup. Never run these ledger tests against a production database.

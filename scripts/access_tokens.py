@@ -20,6 +20,7 @@ from app.demo_gate import LOCK
 TOKEN_REPORT_SQL = (
     "SELECT t.id,t.name,t.created_at,t.expires_at,t.revoked_at,t.max_requests, "
     "t.budget_micro_usd,t.requests_per_minute,u.admitted_requests,u.reserved_micro_usd, "
+    "u.charged_micro_usd,u.unknown_requests, "
     "u.first_used_at,u.last_used_at FROM operations.access_tokens t "
     "JOIN operations.access_usage u ON u.token_id=t.id "
 )
@@ -27,8 +28,8 @@ TOKEN_REPORT_SQL = (
 
 class TokenOptions(BaseModel):
     name: str = Field(min_length=1, max_length=128)
-    max_requests: int = Field(default=5, ge=1, le=10000)
-    budget_usd: Decimal = Field(default=Decimal("0.60"), ge=0, le=100, decimal_places=6)
+    max_requests: int = Field(default=10, ge=1, le=10000)
+    budget_usd: Decimal = Field(default=Decimal("1"), ge=0, le=100, decimal_places=6)
     requests_per_minute: int = Field(default=2, ge=1, le=60)
     expires_in_days: int = Field(default=30, ge=1, le=365)
 
@@ -186,6 +187,7 @@ def token_usage(engine, token_id, limit=50):
             for row in connection.execute(
                 text(
                     "SELECT request_id,created_at,completed_at,reserved_micro_usd,"
+                    "charged_micro_usd,usage_state,"
                     "pricing_version,summary FROM operations.access_requests "
                     "WHERE token_id=:id ORDER BY created_at DESC LIMIT :limit"
                 ),

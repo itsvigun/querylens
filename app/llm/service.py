@@ -13,7 +13,6 @@ from app.config import (
     LLMSettings,
     SQLToolLimits,
 )
-from app.demo_gate import CHAT_EMBEDDING_MAX_BYTES
 from app.llm.contracts import SafeError
 from app.llm.openai_provider import OpenAIProvider
 from app.llm.session import run_session
@@ -21,6 +20,8 @@ from app.rag.embeddings import EmbeddingError, OpenAIEmbedder
 from app.rag.store import KnowledgeStore
 from app.tools.database import DatabaseTools
 from app.tools.dispatch import Dispatcher
+
+CHAT_EMBEDDING_MAX_BYTES = 16000
 
 
 def _ask(
@@ -62,6 +63,7 @@ def _ask(
                 "requests": embedder.requests,
                 "input_bytes": embedder.input_bytes,
                 "prompt_tokens": embedder.prompt_tokens,
+                "usage_complete": getattr(embedder, "usage_complete", False),
             }
             return result
     except (SafeError, EmbeddingError) as exc:

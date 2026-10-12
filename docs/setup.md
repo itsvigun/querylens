@@ -104,7 +104,10 @@ The migration service is an explicit job under the `tools` Compose profile;
 regular API startup never applies migrations. The first migration enables the
 `vector` extension; the second creates analytics tables and a separate knowledge
 schema. The third creates knowledge index metadata and vector chunks. The fourth adds the
-separate operations schema for public admission controls. Role grants
+separate operations schema for public admission controls. The fifth adds invitation
+credentials/sessions/audit; the sixth archives old reserves and adds post-request
+usage accounting. Existing deployments must stop/drain workers before this upgrade
+and configure its new policy after provisioning, without repeating seed/ingestion. Role grants
 are provisioned after migration. Foundation readiness checks migrations/pgvector;
 it does not check embedding account access or index contents. Retrieval itself
 checks compatible index metadata and fails explicitly if missing. To inspect migrations:

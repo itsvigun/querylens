@@ -62,7 +62,7 @@ def valid_identity(connection, identity: AccessIdentity, now):
     return token
 
 
-def reserve_access(connection, identity, request_id, now, charge, pricing_version):
+def admit_access(connection, identity, request_id, now, pricing_version):
     """Called inside the same locked transaction as global admission; denials roll back."""
     token = valid_identity(connection, identity, now)
     usage = (
@@ -75,8 +75,17 @@ def reserve_access(connection, identity, request_id, now, charge, pricing_versio
     )
     if usage["admitted_requests"] >= token["max_requests"]:
         raise AdmissionError("access_request_limit", 429)
-    if usage["reserved_micro_usd"] + charge > token["budget_micro_usd"]:
+    if usage["charged_micro_usd"] >= token["budget_micro_usd"]:
         raise AdmissionError("access_budget_exhausted", 429)
+    if connection.scalar(
+        text(
+            "SELECT count(*) FROM operations.demo_leases l "
+            "JOIN operations.access_requests r ON r.request_id=l.request_id "
+            "WHERE r.token_id=:id"
+        ),
+        {"id": identity.token_id},
+    ):
+        raise AdmissionError("access_busy", 429, 5)
     minute = now.replace(second=0, microsecond=0)
     count = usage["rate_count"] if usage["rate_minute"] == minute else 0
     if count >= token["requests_per_minute"]:
@@ -84,13 +93,12 @@ def reserve_access(connection, identity, request_id, now, charge, pricing_versio
     connection.execute(
         text(
             "UPDATE operations.access_usage SET admitted_requests=admitted_requests+1, "
-            "reserved_micro_usd=reserved_micro_usd+:charge, rate_minute=:minute, "
+            "rate_minute=:minute, "
             "rate_count=:count, first_used_at=COALESCE(first_used_at,:now), last_used_at=:now "
             "WHERE token_id=:id"
         ),
         {
             "id": identity.token_id,
-            "charge": charge,
             "minute": minute,
             "count": count + 1,
             "now": now,
@@ -99,14 +107,14 @@ def reserve_access(connection, identity, request_id, now, charge, pricing_versio
     connection.execute(
         text(
             "INSERT INTO operations.access_requests "
-            "(request_id,token_id,created_at,reserved_micro_usd,pricing_version,summary) "
-            "VALUES (:request,:token,:now,:charge,:pricing,'{}'::jsonb)"
+            "(request_id,token_id,created_at,reserved_micro_usd,charged_micro_usd,"
+            "usage_state,pricing_version,summary) "
+            "VALUES (:request,:token,:now,0,NULL,'pending',:pricing,'{}'::jsonb)"
         ),
         {
             "request": request_id,
             "token": identity.token_id,
             "now": now,
-            "charge": charge,
             "pricing": pricing_version,
         },
     )
@@ -134,7 +142,7 @@ class AccessStore:
             )
         checks.extend(
             func.has_column_privilege(actor, "operations.access_requests", column, "UPDATE")
-            for column in ("summary", "completed_at")
+            for column in ("summary", "completed_at", "charged_micro_usd", "usage_state")
         )
         with self.engine.connect() as connection:
             return connection.scalar(select(and_(*checks))) is True
@@ -240,13 +248,16 @@ class AccessStore:
                     .mappings()
                     .one()
                 )
-                remaining = max(
-                    0,
-                    min(
-                        token["max_requests"] - usage["admitted_requests"],
-                        (token["budget_micro_usd"] - usage["reserved_micro_usd"])
-                        // policy.request_micro_usd,
-                    ),
+                remaining = max(0, token["max_requests"] - usage["admitted_requests"])
+                shared = (
+                    connection.scalar(
+                        text(
+                            "SELECT charged_micro_usd FROM operations.demo_months "
+                            "WHERE month=date_trunc('month',"
+                            "clock_timestamp() AT TIME ZONE 'UTC')::date"
+                        )
+                    )
+                    or 0
                 )
                 return {
                     "required": True,
@@ -254,6 +265,8 @@ class AccessStore:
                     "name": token["name"],
                     "expires_at": token["expires_at"].isoformat(),
                     "remaining_requests": remaining,
+                    "shared_available": shared < policy.monthly_micro_usd,
+                    "budget_available": usage["charged_micro_usd"] < token["budget_micro_usd"],
                 }
         except SQLAlchemyError, OSError:
             raise AdmissionError("access_unavailable") from None
@@ -276,7 +289,8 @@ class AccessStore:
                         "0,CAST(:summary AS jsonb)) "
                         "ON CONFLICT (request_id) DO UPDATE "
                         "SET completed_at=EXCLUDED.completed_at, "
-                        "summary=EXCLUDED.summary WHERE access_requests.token_id=EXCLUDED.token_id"
+                        "summary=access_requests.summary || EXCLUDED.summary "
+                        "WHERE access_requests.token_id=EXCLUDED.token_id"
                     ),
                     {
                         "request": request_id,

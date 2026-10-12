@@ -13,7 +13,8 @@ The demo uses EUR and a fixed reference date of **2026-10-01 UTC**.
 [Hosted UI](https://querylens-production-f241.up.railway.app/) ·
 [API documentation](https://querylens-production-f241.up.railway.app/docs).
 Public AI chat verification is not complete. Named invitation codes, per-token
-quotas and usage audit are implemented locally; hosted rollout is pending.
+quotas and usage audit support author-confirmed hosted login. Post-request cost
+accounting is implemented locally and awaits its migration/deployment rollout.
 
 **Stack:** Python 3.14, FastAPI, PostgreSQL/pgvector, SQLAlchemy, Alembic,
 OpenAI Responses, LangGraph, uv and Docker Compose.

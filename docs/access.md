@@ -7,9 +7,10 @@ creates, updates and revokes codes through a CLI. There is no administrative HTT
 endpoint. The company label identifies the intended recipient; someone can forward
 the code, so it does not establish the real identity of the visitor.
 
-This feature is implemented and verified locally. Applying migration `0005`,
-provisioning updated permissions and deploying the protected API on Railway remain
-separate rollout steps; see [deployment](deployment.md#invitation-access-rollout).
+Invitation login is deployed and the author confirmed access on Railway. The
+post-request accounting change requires migration `0006_post_request_usage`,
+updated grants and policy configuration before deploying the new API; see
+[deployment](deployment.md#post-request-accounting-upgrade).
 
 ## Access flow
 
@@ -37,37 +38,60 @@ click **Authorize** and enter the code to submit requests. CLI tools such as
 
 ## Quotas and accounting
 
-Each invitation has lifetime request and USD reservation caps, a fixed UTC-minute
-rate cap, an expiration and revocation state. These caps are enforced alongside
-the existing global monthly/rate/concurrency caps, in one locked PostgreSQL
-transaction before any provider call. A global denial rolls back the invitation
-reservation; an invitation denial cannot consume the shared budget.
+Each invitation defaults to **10 lifetime questions**, a **USD 1 measured-usage
+threshold**, 2 questions/minute and 30-day expiry. Request counts, authentication,
+rate limits and one active question per invitation are checked atomically with
+the global rate/concurrency controls before any provider call. An admitted question
+uses one question even if its answer fails; login, metadata reads and pre-admission
+denials use none. Updates preserve counts and existing credentials.
 
-The defaults are 5 questions, USD 0.60, 2 questions/minute and 30 days. With current
-provider limits, each admitted question reserves USD 0.114320, including requests
-that later fail. Unused reservations are not refunded, and an incomplete request
-keeps its charge. This is conservative admission accounting, not an OpenAI invoice.
-Login, metadata reads and pre-admission denials consume no question allowance.
-The existing shared USD 1/UTC calendar month permits at most eight admitted
-questions across all invitations. Issuing more invitations does not enlarge it.
-The UI's remaining count reflects the invitation allowance; shared availability
-can further restrict it. Ten admissions reserve USD 1.143200, so a ten-question
-invitation needs a reservation cap of at least that amount (USD 1.20 is convenient).
-It still cannot bypass a shared USD 1 monthly policy. Raising that shared limit
-requires a separate explicit allocation and stopped-worker policy update.
+There are **no monetary reservations**. Completion uses full LLM and embedding
+usage to estimate standard uncached cost, rounded up to integer micro-USD. The same
+transaction records the cost against the invitation and the admission's UTC month,
+and releases its concurrency lease. Duplicate completion cannot count twice.
+Known consumption is recorded even if the answer is unsuccessful. Estimates are
+not OpenAI invoices: cached discounts, taxes and account balance are not reconciled.
+
+USD limits are **soft thresholds**: a new question is denied once known accumulated
+cost reaches the threshold. The final question can cross it. One active question
+per invitation limits parallel overshoot; up to the configured global concurrency
+can cross the shared threshold. Existing provider/token/deadline limits still bound
+individual requests. A zero USD threshold disables admission.
+
+Partial/missing usage is recorded as `unknown`, with a NULL request cost and an
+`unknown_requests` counter; no maximum or zero cost is invented. These requests
+still consume the question allowance. A crashed request keeps its concurrency
+lease until explicit owner recovery. Unknown costs are excluded from the known-cost
+sum, so it is not a complete spending guarantee. Owner/developer CLI, ingestion and
+evaluation remain outside the HTTP quotas and need separate allowances.
+
+The shared allocation remains USD 1 per UTC calendar month; this change does not
+raise it to USD 100. The UI shows questions left independently from personal/shared
+budget availability and disables submission when either money threshold is reached.
+Ten questions no longer need a USD 1.20 reservation cap. Existing limits stay as
+issued; use the owner update command to set an existing code to 10 questions/USD 1.
+
+Migration `0006` archives old monthly reservations in `legacy_reserved_micro_usd`.
+Existing token/request `reserved_micro_usd` fields are historical only. New known-cost
+counters start at zero at migration; old costs cannot be reliably reconstructed
+from reserves and are excluded from new thresholds. Tokens, sessions, request counts,
+rate counters and audit rows are preserved. A `legacy` record has unknown measured
+cost; it is not a free request. No reserve reconciliation job is needed.
 
 ## Owner commands
 
 Use the database owner credentials from [setup](setup.md), never the API's runtime
-role. Run the explicit migration and provisioning first. Do not reset the ledger
+role. Run the explicit migration, provisioning and policy configuration first. Do not reset the ledger
 or repeat seed/ingestion to enable invitations.
 
 ```bash
 uv run --locked alembic upgrade head
 uv run --locked python -m scripts.provision_roles
+# With PUBLIC_DEMO_ENABLED=true and matching API settings; all workers stopped:
+uv run --locked python -m scripts.demo_policy --configure
 uv run --locked python -m scripts.access_tokens create \
   --name "Acme — Backend interview" \
-  --max-requests 5 --budget-usd 0.60 --requests-per-minute 2 \
+  --max-requests 10 --budget-usd 1 --requests-per-minute 2 \
   --expires-in-days 30 --output .access-tokens/acme.txt
 uv run --locked python -m scripts.access_tokens list
 ```
@@ -84,7 +108,7 @@ Use the 32-character `token_id` from the metadata, not the full secret:
 ```bash
 uv run --locked python -m scripts.access_tokens usage TOKEN_ID --limit 50
 uv run --locked python -m scripts.access_tokens update TOKEN_ID \
-  --max-requests 10 --budget-usd 1.20 --expires-in-days 30
+  --max-requests 10 --budget-usd 1 --expires-in-days 30
 uv run --locked python -m scripts.access_tokens revoke TOKEN_ID
 ```
 
@@ -132,17 +156,18 @@ runtime permission check; it still does not establish AI/index readiness.
 ## Audit and security boundaries
 
 `usage` joins the owner-assigned name with counters and sanitized request records:
-request ID, times, reserved micro-USD, pricing version, HTTP status, result/error
-category, model IDs, actual token counts, bounded tool counters and duration.
+request ID, times, estimated micro-USD/usage state, legacy reserves, pricing version,
+HTTP status, result/error category, model IDs, actual token counts, bounded tool counters and duration.
 `first_used_at`/`last_used_at` mean admitted questions, not logins. Authenticated
-invalid/denied chat requests can have audit rows with zero reservation. Anonymous
+invalid/denied chat requests have `not_admitted` audit rows without a measured cost. Anonymous
 or invalid-code attempts have no verified token identity and appear only in fixed
 category logs. Console logs use token IDs, without names or secrets.
 
 Pending records are inserted with admission and completed after the response.
 If completion cannot be persisted, `audit_recorded=false` appears in logs and the
 pending record remains unknown. Stop all workers before explicit stale-lease
-recovery; it marks pending usage `request_interrupted` without refunding charges.
+recovery; it marks pending usage `request_interrupted`/`unknown` without inventing
+a monetary charge. Reports distinguish recorded, unknown, pending and legacy usage.
 No question, SQL, result content, credential, header, IP or user agent is stored
 in this audit. See [observability](observability.md).
 
@@ -164,8 +189,8 @@ loss. Verification uses stubs and disposable PostgreSQL, with no paid calls.
 
 ## Creating hosted invitations from the laptop
 
-Use this after applying migration `0005`, re-provisioning existing hosted role
-passwords and deploying the protected API according to the rollout guide. Open
+Use this after applying migration `0006`, re-provisioning existing hosted role
+passwords, configuring the new policy and deploying the protected API according to the rollout guide. Open
 the private tunnel in one terminal (leave it running):
 
 ```bash
@@ -191,7 +216,7 @@ In another terminal, from the repository root:
 ```bash
 uv run --locked --env-file .env.production python -m scripts.access_tokens create \
   --name "Acme — Backend interview" \
-  --max-requests 10 --budget-usd 1.20 --expires-in-days 30 \
+  --max-requests 10 --budget-usd 1 --expires-in-days 30 \
   --output .access-tokens/acme-production.txt
 uv run --locked --env-file .env.production python -m scripts.access_tokens list
 uv run --locked --env-file .env.production python -m scripts.access_tokens usage TOKEN_ID
@@ -202,6 +227,5 @@ uv run --locked --env-file .env.production python -m scripts.access_tokens revok
 precedence over the local development `.env`. The private invitation file contains
 the full code; stdout contains metadata only. Give the recipient the code and the
 hosted homepage URL separately. Keep the SSH tunnel/environment file private and
-close the tunnel when finished. A ten-question token still shares the currently
-approved USD 1/month hosted allocation, permitting at most eight admissions
-across all recipients. These commands do not raise that allocation.
+close the tunnel when finished. All codes share the currently approved USD 1/month
+known-cost threshold. These commands do not raise it or synchronize OpenAI balance.

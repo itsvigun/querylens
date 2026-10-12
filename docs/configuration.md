@@ -55,15 +55,16 @@ Keep all passwords and provider keys server-side and outside Git, logs and image
 |---|---|---|
 | `PUBLIC_DEMO_ENABLED` | `false` locally | Enable shared PostgreSQL admission; required on Railway |
 | `DEMO_CONTROL_PASSWORD` | Required in public mode | Dedicated `querylens_demo_control` secret; no owner fallback |
-| `PUBLIC_CHAT_MONTHLY_BUDGET_USD` | `0` | Conservative UTC-month allocation, up to $100, at most six decimal places; zero disables paid public chat |
+| `PUBLIC_CHAT_MONTHLY_BUDGET_USD` | `0` | Known-cost UTC-month threshold, up to $100, at most six decimal places; zero disables paid public chat |
 | `PUBLIC_CHAT_REQUESTS_PER_MINUTE` | `6` | Global fixed UTC-minute admitted-request cap, 1–60 |
 | `PUBLIC_CHAT_MAX_CONCURRENT` | `1` | Shared durable active-lease cap, 1–4; local process guard remains one |
 | `PORT` | `8000` | Docker/PaaS HTTP port, 1–65535, read by `scripts.serve` |
 
 The optional Railway-provided `RAILWAY_ENVIRONMENT_ID` makes disabled public
 controls a startup error. Configure the matching policy explicitly using owner
-credentials; workers cannot change policy. Default per-question reservation is
-$0.114320; unused amounts are not refunded. See [deployment](deployment.md) for
+credentials; workers cannot change policy. Money is never reserved: complete usage
+is estimated after completion. Thresholds can be crossed by the final admitted
+request(s); unknown usage is explicitly recorded and excluded from known-cost sums. See [deployment](deployment.md) for
 pricing assumptions, credential separation, recovery and actual acceptance limits.
 
 ## Invitation access settings

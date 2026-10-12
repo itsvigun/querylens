@@ -54,6 +54,7 @@ class OpenAIProvider:
             raise SafeError("llm_budget_exhausted")
         body = {
             "model": self.settings.llm_model,
+            "service_tier": "default",
             "instructions": INSTRUCTIONS,
             "input": messages,
             "tools": TOOLS,

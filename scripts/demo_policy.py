@@ -37,7 +37,8 @@ def status(engine):
                 dict(row)
                 for row in connection.execute(
                     text(
-                        "SELECT month, charged_micro_usd, rate_minute, rate_count "
+                        "SELECT month,charged_micro_usd,legacy_reserved_micro_usd,"
+                        "unknown_requests,rate_minute,rate_count "
                         "FROM operations.demo_months ORDER BY month DESC LIMIT 12"
                     )
                 ).mappings()
@@ -58,14 +59,24 @@ def release_stale(engine, request_id: str):
     UUID(request_id)
     with engine.begin() as connection:
         connection.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": LOCK})
-        connection.execute(
-            text("DELETE FROM operations.demo_leases WHERE request_id=:id"), {"id": request_id}
-        )
+        lease = connection.execute(
+            text("DELETE FROM operations.demo_leases WHERE request_id=:id RETURNING month"),
+            {"id": request_id},
+        ).one_or_none()
+        if lease is None:
+            return
         connection.execute(
             text(
+                "UPDATE operations.demo_months SET "
+                "unknown_requests=unknown_requests+1 WHERE month=:month"
+            ),
+            {"month": lease.month},
+        )
+        token = connection.scalar(
+            text(
                 "UPDATE operations.access_requests SET completed_at=clock_timestamp(), "
-                "summary=CAST(:summary AS jsonb) "
-                "WHERE request_id=:id AND completed_at IS NULL"
+                "usage_state='unknown',summary=summary || CAST(:summary AS jsonb) "
+                "WHERE request_id=:id AND usage_state='pending' RETURNING token_id"
             ),
             {
                 "id": request_id,
@@ -78,7 +89,15 @@ def release_stale(engine, request_id: str):
                 ),
             },
         )
-    # The potentially billed request remains charged, including after a crash.
+        if token is not None:
+            connection.execute(
+                text(
+                    "UPDATE operations.access_usage SET "
+                    "unknown_requests=unknown_requests+1 WHERE token_id=:id"
+                ),
+                {"id": token},
+            )
+    # Unknown usage is explicit; recovery never invents a monetary charge.
 
 
 def main() -> int:
@@ -106,11 +125,11 @@ def main() -> int:
                 "configured": True,
                 "pricing_version": PRICING_VERSION,
                 "monthly_micro_usd": policy.monthly_micro_usd,
-                "request_reservation_micro_usd": policy.request_micro_usd,
+                "accounting": "post_request_usage",
             }
         elif args.release_stale:
             release_stale(engine, args.release_stale)
-            result = {"released": True, "charge_preserved": True}
+            result = {"released": True, "usage_unknown": True}
         else:
             result = status(engine)
         print(json.dumps(result, default=str))

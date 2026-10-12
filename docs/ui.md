@@ -78,3 +78,10 @@ the UI's controls do not replace them. The main API keeps its configured request
 budgets. Cost estimation, streaming, history and a deployed public demo are outside
 this milestone. See [testing](testing.md#browser-checks) and the
 [stage 6 verification record](verification.md#stage-6) for actual evidence.
+
+
+Invitation status displays remaining questions independently of monetary thresholds.
+A personal or shared known-cost threshold disables submission and shows a fixed
+notice before any paid POST. There is no balance query to OpenAI or monetary
+reservation. `access_busy` explains an active question on the same invitation.
+The backend rechecks all limits; browser status can become stale between requests.
