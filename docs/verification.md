@@ -828,3 +828,65 @@ remain applicable and the suites were not repeated. Local plan, environments and
 invitation files are ignored. Production accounting rollout remains a separate
 migration/grants/policy step before API deployment; pushing code does not establish
 hosted acceptance.
+
+
+## Hosted accounting upgrade instructions — 2026-10-12
+
+While preparing the author's complete rollout instructions, read-only Railway
+metadata confirmed `querylens`/`setup` SUCCESS on `22cd484`, DB SUCCESS and the
+previous completed ingestion. Scoped nonsecret settings showed both policies match:
+public enabled, USD 1/month, 6/minute, concurrency 1, GPT-5.4 mini and small embeddings.
+API invitation access and secure origin/cookies are enabled. No raw variable payload
+or secrets were printed. New source `e973c0a` has not been deployed by the agent.
+
+Verified installed CLI 5.64.2 `redeploy --from-source` help and official Railway
+start-command, deployment-actions and staged-changes documentation. Updated the
+guide's old hosted-source statement and configuration-before-deploy instructions.
+These are instructions/read-only evidence, not performed migration or deployment.
+No service, policy, counter, provider or credential was changed. Docs diff checks
+passed; application source unchanged, so tests were not repeated. Guide/evidence
+edits remain local after the accounting push.
+
+
+## Author-confirmed hosted accounting smoke — 2026-10-12
+
+The author reported working hosted UI and supplied owner CLI status/list/usage
+output after the upgrade. One authenticated request completed with `answered`,
+HTTP 200, 3 LLM requests, 3 tools, 1 SQL attempt and no repairs. Complete recorded
+usage was 6693 input tokens, 292 output tokens and 8 small-embedding tokens;
+standard uncached estimate rounded up to **6334 micro-USD (USD 0.006334)**.
+Request/token/global known-cost totals agree; the request reserve is zero and
+`usage_state=recorded`. Global unknown requests are zero and active leases empty.
+The previous 914560 micro-USD reservations remain archived. The test invitation
+used one of ten questions; five recipient invitations remain unused. Existing
+USD 1.20 issued limits were retained rather than silently changed.
+
+Two previous budget denials remain `not_admitted` with NULL cost and did not use
+questions. A standalone `access_admin_failed` line lacked its command; the next
+usage command with a concrete token ID succeeded, so its cause is not established.
+This evidence is author-supplied, not a paid call or hosted mutation by the agent.
+The answer content/SQL values were not supplied: this confirms live operation and
+accounting, not semantic correctness or the full five-prompt/restart/backup suite.
+
+## Commit identity rewrite and documentation preflight — 2026-10-13
+
+At the author's explicit request, replaced the old work email in author/committer
+metadata across `main` and `verify/stage-7`. Rewrote 17 of 18 reachable commits;
+the unchanged GitHub root remains byte-for-byte intact. Verified original author
+and committer dates/timezones, messages, tree IDs and parent topology for every
+rewritten commit. Re-signed 16 signed commits and verified signatures locally;
+the previously unsigned verification commit remains unsigned.
+
+A private ignored bundle backup was verified before atomic local ref updates and
+an atomic push with explicit per-branch force-with-lease expectations. Remote heads
+match: accounting `e973c0a` became `b657c8e`, and verification `4078992` became
+`c8c2f1e`. Existing uncommitted documentation patches were byte-for-byte preserved.
+Historical hashes earlier in this record describe the revisions at the time.
+GitHub API confirmed the new email on the main author/committer; its signature
+status is `unknown_key`. GPG/account settings were not changed; GitHub verification
+needs the matching email identity and uploaded public key.
+
+The subsequent explicit documentation commit/push request includes only deployment
+instructions and this evidence. Diff and documentation-target checks passed.
+Application code is unchanged, so tests were not repeated. Local plan, invitation
+files, environments, history backup and LinkedIn draft remain ignored/uncommitted.

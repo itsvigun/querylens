@@ -6,14 +6,17 @@ Stage 8 targets **Railway**. The public UI/API foundation is verified at
 [querylens-production-f241.up.railway.app](https://querylens-production-f241.up.railway.app/),
 with [Swagger documentation](https://querylens-production-f241.up.railway.app/docs).
 Live knowledge ingestion has stored 25 chunks using `text-embedding-3-small`
-(1536 dimensions). Live AI answers, hosted restart persistence and backup
-recovery remain pending. Additional paid jobs/public-chat budgets require an
+(1536 dimensions). The author confirmed one hosted answered request with recorded usage after the
+accounting upgrade. The complete five-prompt suite, hosted restart persistence
+and backup recovery remain pending. Additional paid jobs/public-chat budgets require an
 explicit allowance. See [verification](verification.md) for completed checks.
 
 The author approved a shared $1/month public-chat allocation on 2026-10-11.
-It is configured on API/setup and in the database policy. The deployed older
-accounting reserves USD 0.114320 per question. The new local implementation uses
-post-request cost estimates instead; apply the accounting upgrade below to enable it. The author subsequently added the API's OpenAI key and redeployed;
+It is configured on API/setup and in the database policy. The author confirmed
+post-request accounting on 2026-10-12: one answered request recorded USD 0.006334,
+with zero new reserve and no active leases. The previous USD 0.914560 reservations
+are archived and excluded from the new known-cost threshold. Existing older
+deployments must follow the accounting upgrade below. The author subsequently added the API's OpenAI key and redeployed;
 adding that key alone does not change the policy fingerprint. Railway usage and explicit CLI/ingestion jobs
 are outside this allocation.
 
@@ -393,8 +396,11 @@ The original ARPU/ARPPU live report remains unchanged with strict failures.
 
 ## Invitation access rollout
 
-This version requires invitation access on Railway. The deployed `cd1a7ea` API
-still uses the preceding public flow; local checks do not establish a hosted gate.
+Railway requires invitation access. Read-only metadata on 2026-10-12 confirms
+`querylens` and `setup` on `22cd484`; the author already confirmed hosted invitation
+login. The author subsequently confirmed the accounting upgrade with one answered
+request and owner reports. Accounting source is `b657c8e` (previously `e973c0a`
+before the email-only history rewrite); older deployments need the upgrade below.
 Do the following before deploying the new source to an existing database:
 
 1. Disable automatic deployment during the upgrade and stop/drain the API workers.
@@ -444,6 +450,10 @@ The explicit shell is required for chaining commands in a Dockerfile service;
 [Railway start-command behavior](https://docs.railway.com/deployments/start-command).
 Keep Restart Policy Never, no HTTP domain/healthcheck and automatic deployments
 disabled. Existing `setup` DB references and role passwords stay unchanged.
+Review the staged changes banner before running the CLI. Hold Alt while clicking
+Deploy to apply configuration without starting deployments, then explicitly deploy
+`setup` from the latest source. This avoids running the old command/image or
+starting the API before migration. [Staged changes](https://docs.railway.com/deployments/staged-changes).
 This runs migration/provisioning/policy configuration/version inspection, with
 no seed, ingestion or provider call. Setup and API provider/budget settings must match.
 
@@ -470,7 +480,7 @@ commit in each deployment. Follow the readiness/auth/token steps above afterward
 
 ## Post-request accounting upgrade
 
-This local change replaces permanent reserves and the unshipped refund prototype.
+This accounting change replaces permanent reserves and the unshipped refund prototype.
 Do not deploy the API before upgrading the DB and its policy. Keep the shared
 monthly budget at the existing USD 1; USD 100 was discussed but not selected.
 
