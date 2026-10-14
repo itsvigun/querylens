@@ -226,6 +226,18 @@ def test_browser_login_cookie_csrf_status_and_logout(access_client):
     assert not store.sessions
 
 
+def test_link_parameter_is_not_backend_authentication(access_client):
+    client, store, gate, calls, logs = access_client
+    page = client.get("/", params={"at": store.token})
+    assert page.status_code == 200
+    assert page.headers["referrer-policy"] == "no-referrer"
+    assert store.token not in page.text and "set-cookie" not in page.headers
+    for path in ("/api/access/status", "/demo", "/docs"):
+        assert client.get(path, params={"at": store.token}).status_code == 401
+    assert not store.sessions and not calls and not gate.events and not store.audits
+    assert store.token not in json.dumps(logs)
+
+
 @pytest.mark.parametrize(
     "headers",
     [

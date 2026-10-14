@@ -20,8 +20,10 @@ PostgreSQL admission controls. The Railway UI, Swagger, dataset metadata and DB
 readiness are publicly verified, and live ingestion stored 25 knowledge chunks.
 Full live AI [deployment acceptance](deployment.md) remains pending. Named
 [invitation access](access.md), per-token quotas and durable usage audit are
-deployed with author-confirmed hosted login. The new post-request accounting
-change is locally verified and needs its separate hosted migration/policy rollout.
+deployed with author-confirmed hosted login and accounting. Agent-run live checks
+in the deployed container matched five SQL value tables, with three of five strict
+grades passing; relative-period citations and categorical fact coverage remain
+open. See the latest verification record before claiming deployment acceptance.
 
 ## Request and data flow
 

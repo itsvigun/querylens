@@ -73,6 +73,18 @@ invitation code is cleared after entry; the short login session uses an HttpOnly
 cookie and its CSRF nonce stays in memory. Expiry/revocation locks the workspace
 without submitting a question or automatically retrying. See [access.md](access.md).
 
+The entry page accepts a private `/#at=<code>` invitation link (recommended) or
+`/?at=<code>`. It scrubs the code from the URL before exchanging it through the
+existing POST login. Explicit links take precedence over a previous browser
+session; invalid/ambiguous links show the entry error instead of restoring that
+session. Automatic entry displays `Opening workspace…`, with the input/button
+disabled until completion. The root response uses no-referrer/no-store; query
+codes still reach the hosting edge on the initial request. See the invitation
+guide for sharing rules and the distinction between query and fragment links.
+Fragment changes on an already open page also trigger invitation entry. A link
+opened during login or an active question is scrubbed and rejected with a visible
+wait notice; it never switches the identity of an in-flight request.
+
 Server-side SQL permissions, budgets and answer validation remain authoritative;
 the UI's controls do not replace them. The main API keeps its configured request
 budgets. Cost estimation, streaming, history and a deployed public demo are outside

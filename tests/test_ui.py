@@ -18,7 +18,8 @@ def test_ui_and_assets_are_available_without_provider_calls(settings, monkeypatc
         assert "Synthetic demo" in page.text
         assert "script-src 'self'" in page.headers["content-security-policy"]
         assert "unsafe-inline" not in page.headers["content-security-policy"]
-        assert page.headers["cache-control"] == "no-cache"
+        assert page.headers["cache-control"] == "no-store"
+        assert page.headers["referrer-policy"] == "no-referrer"
         for asset in ("app.js", "app.css"):
             url = re.search(rf'"(/assets/{re.escape(asset)}\?v=[a-f0-9]{{16}})"', page.text)
             assert url is not None and client.get(url[1]).status_code == 200

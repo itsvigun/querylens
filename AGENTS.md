@@ -199,7 +199,15 @@ or a maximum charge. Migration archives old reserves without resetting identitie
 or question counts. Policy fingerprints version the accounting semantics. Revocation/expiry applies to linked
 browser sessions and is rechecked at admission. Already admitted work can finish.
 Keep secure host-only HttpOnly/SameSite cookies, exact Origin and CSRF checks for
-cookie POSTs, Bearer authentication for API clients, and no credential URLs/storage.
+cookie POSTs and Bearer authentication for API clients. The entry page supports
+owner-authorized private invitation links: prefer `#at=`, also accept `?at=`, scrub
+the code before fetches and exchange it through the existing POST login. Query
+credentials can reach hosting logs; never claim client-side cleanup prevents that.
+Handle fragment changes on an already open page as well as document entry; scrub
+and reject new links while login or a question is in flight, without switching
+identity.
+Do not use URL credentials for backend authentication or persist codes in browser
+storage; reject ambiguous links and keep manual entry available.
 Runtime control credentials cannot issue/revoke/edit invitations; owner credentials
 stay outside the API. Logs contain server-derived token IDs and fixed summaries;
 company labels appear only in metadata/reports. Durable audit omits questions,

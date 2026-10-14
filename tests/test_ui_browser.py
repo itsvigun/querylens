@@ -459,6 +459,271 @@ def test_invitation_revocation_does_not_retry_the_question(invited_ui):
     assert not state["calls"]
 
 
+@pytest.mark.parametrize("width", [1280, 390])
+@pytest.mark.parametrize("kind", ["query", "fragment"])
+def test_invitation_link_login_scrubs_url_and_preserves_cookie(invited_ui, width, kind):
+    from urllib.parse import urlencode
+
+    from playwright.sync_api import expect
+
+    page, state, store = invited_ui
+    origin = page.url.rstrip("/")
+    page.set_viewport_size({"width": width, "height": 960})
+    page.add_init_script("""
+        window.linkFetches = [];
+        const originalFetch = window.fetch;
+        window.fetch = (...args) => {
+          window.linkFetches.push({request: args[0], address: location.href});
+          return originalFetch(...args);
+        };
+    """)
+    requests = []
+    page.on("request", lambda request: requests.append(request))
+    token_parameter = urlencode({"at": store.token})
+    if kind == "query":
+        link = f"{origin}/?lang=en&{token_parameter}#question"
+        clean = f"{origin}/?lang=en#question"
+    else:
+        link = f"{origin}/?lang=en#{token_parameter}&panel=sql"
+        clean = f"{origin}/?lang=en#panel=sql"
+    page.goto(link)
+    expect(page.locator("#workspace")).to_be_visible()
+    expect(page).to_have_url(clean)
+    expect(page.get_by_label("Access code", exact=True)).to_have_value("")
+    assert page.evaluate("window.linkFetches[0].request") == "/api/access/login"
+    assert all(item["address"] == clean for item in page.evaluate("window.linkFetches"))
+    assert len(store.sessions) == 1 and not state["calls"] and not store.audits
+    assert page.evaluate("localStorage.length + sessionStorage.length") == 0
+    assert store.token not in page.content()
+    for request in requests:
+        assert not request.all_headers().get("referer")
+        if kind == "fragment" or request.resource_type != "document":
+            assert store.token not in request.url
+    assert sum(request.url.endswith("/api/access/login") for request in requests) == 1
+    page.reload()
+    expect(page.locator("#workspace")).to_be_visible()
+    assert len(store.sessions) == 1 and not state["calls"]
+    ask(page)
+    expect(page.locator("#answer-badge")).to_have_text("Answered")
+    assert len(state["calls"]) == 1
+    page.get_by_role("button", name="Sign out").click()
+    expect(page.locator("#workspace")).to_be_hidden()
+    page.reload()
+    expect(page.get_by_label("Access code", exact=True)).to_be_visible()
+    expect(page.locator("#workspace")).to_be_hidden()
+    assert not store.sessions and len(state["calls"]) == 1
+
+
+@pytest.mark.parametrize(
+    "suffix",
+    [
+        "?at=",
+        "#at=",
+        "?at=invalid",
+        "#at=%3Cscript%3E",
+        "?at={token}&at={token}",
+        "#at={token}&at={token}",
+        "?at={token}#at={token}",
+    ],
+)
+def test_invalid_or_ambiguous_invitation_link_cannot_restore_old_session(invited_ui, suffix):
+    from playwright.sync_api import expect
+
+    page, state, store = invited_ui
+    origin = page.url.rstrip("/")
+    page.get_by_label("Access code", exact=True).fill(store.token)
+    page.get_by_role("button", name="Open workspace").click()
+    expect(page.locator("#workspace")).to_be_visible()
+    requests = []
+    # Navigate from another document, as a recipient opening a CV link would.
+    # A fragment-only change on the current page does not load its entry script.
+    page.goto("about:blank")
+    page.on("request", lambda request: requests.append(request.url))
+    page.goto(origin + "/" + suffix.format(token=store.token))
+    expect(page.locator("#access-error")).to_contain_text("invalid, expired or revoked")
+    expect(page.locator("#workspace")).to_be_hidden()
+    expect(page.get_by_role("button", name="Open workspace")).to_be_enabled()
+    expect(page).to_have_url(origin + "/")
+    assert not any("/api/" in url or url.endswith("/demo") for url in requests)
+    assert len(store.sessions) == 1 and not state["calls"]
+    assert store.token not in page.content()
+
+
+@pytest.mark.parametrize("category", ["access_denied", "access_session_limit"])
+def test_rejected_invitation_link_is_scrubbed_without_retry(invited_ui, monkeypatch, category):
+    from playwright.sync_api import expect
+
+    from app.demo_gate import AdmissionError
+
+    page, state, store = invited_ui
+    attempts = []
+
+    def rejected(credential, ttl):
+        attempts.append(credential)
+        raise AdmissionError(category, 401 if category == "access_denied" else 429)
+
+    monkeypatch.setattr(store, "create_session", rejected)
+    origin = page.url.rstrip("/")
+    page.goto(f"{origin}/?at={store.token}")
+    message = (
+        "invalid, expired or revoked" if category == "access_denied" else "too many open sessions"
+    )
+    expect(page.locator("#access-error")).to_contain_text(message)
+    expect(page.locator("#workspace")).to_be_hidden()
+    expect(page).to_have_url(origin + "/")
+    assert attempts == [store.token] and not state["calls"] and not store.sessions
+
+
+def test_invitation_link_loading_and_network_failure_allow_manual_entry(invited_ui):
+    from playwright.sync_api import expect
+
+    page, state, store = invited_ui
+    pending = []
+    page.route("**/api/access/login", lambda route: pending.append(route))
+    origin = page.url.rstrip("/")
+    page.goto(f"{origin}/?at={store.token}")
+    expect(page.get_by_role("button", name="Opening workspace…")).to_be_disabled()
+    expect(page.get_by_label("Access code", exact=True)).to_be_disabled()
+    expect(page.locator("#workspace")).to_be_hidden()
+    expect(page).to_have_url(origin + "/")
+    assert len(pending) == 1 and not state["calls"] and not store.sessions
+    pending[0].abort()
+    expect(page.locator("#access-error")).to_contain_text("Could not reach the server")
+    expect(page.get_by_role("button", name="Open workspace")).to_be_enabled()
+    expect(page.get_by_label("Access code", exact=True)).to_be_enabled()
+    assert len(pending) == 1
+    page.unroute("**/api/access/login")
+    page.get_by_label("Access code", exact=True).fill(store.token)
+    page.get_by_role("button", name="Open workspace").click()
+    expect(page.locator("#workspace")).to_be_visible()
+    assert len(store.sessions) == 1 and not state["calls"]
+
+
+def test_invitation_link_selects_its_company_over_previous_cookie(invited_ui, monkeypatch):
+    from playwright.sync_api import expect
+
+    from app.access import AccessIdentity, issue_credential
+    from app.demo_gate import AdmissionError
+
+    page, state, store = invited_ui
+    old_id, old_token = store.token_id, store.token
+    new_id, new_token, _ = issue_credential("qlt")
+    identities = {old_token: old_id, new_token: new_id}
+    sessions = {}
+
+    def authenticate(credential, *, session=False):
+        if session and credential in sessions:
+            return sessions[credential]
+        if not session and credential in identities:
+            return AccessIdentity(identities[credential])
+        raise AdmissionError("access_denied", 401)
+
+    def create_session(credential, ttl):
+        identity = authenticate(credential)
+        sid, session, _ = issue_credential("qls")
+        sessions[session] = AccessIdentity(identity.token_id, sid)
+        return session, ttl, sessions[session]
+
+    original_status = store.status
+    monkeypatch.setattr(store, "authenticate", authenticate)
+    monkeypatch.setattr(store, "create_session", create_session)
+    monkeypatch.setattr(
+        store,
+        "status",
+        lambda identity, policy: {
+            **original_status(identity, policy),
+            "name": "Old company" if identity.token_id == old_id else "New company",
+        },
+    )
+    page.get_by_label("Access code", exact=True).fill(old_token)
+    page.get_by_role("button", name="Open workspace").click()
+    expect(page.locator("#access-remaining")).to_contain_text("Old company")
+    origin = page.url.rstrip("/")
+    page.goto(origin + f"/#at={new_token}")
+    expect(page.locator("#access-remaining")).to_contain_text("New company")
+    assert len(sessions) == 2 and not state["calls"]
+    page.reload()
+    expect(page.locator("#access-remaining")).to_contain_text("New company")
+
+
+def test_fragment_link_on_open_entry_page_logs_in_without_reload(invited_ui):
+    from playwright.sync_api import expect
+
+    page, state, store = invited_ui
+    expect(page.get_by_label("Access code", exact=True)).to_be_visible()
+    page.evaluate("window.entryDocumentMarker = true")
+    origin = page.url.rstrip("/")
+    page.goto(origin + f"/#at={store.token}")
+    expect(page.locator("#workspace")).to_be_visible()
+    expect(page).to_have_url(origin + "/")
+    assert page.evaluate("window.entryDocumentMarker") is True
+    assert len(store.sessions) == 1 and not state["calls"]
+    page.goto(origin + "/#question")
+    expect(page.get_by_label("Your question", exact=True)).to_be_visible()
+    assert len(store.sessions) == 1
+
+
+@pytest.mark.parametrize("fragment", ["at=", "at=invalid", "at={token}&at={token}"])
+def test_invalid_fragment_change_locks_existing_workspace(invited_ui, fragment):
+    from playwright.sync_api import expect
+
+    page, state, store = invited_ui
+    page.get_by_label("Access code", exact=True).fill(store.token)
+    page.get_by_role("button", name="Open workspace").click()
+    expect(page.locator("#workspace")).to_be_visible()
+    origin = page.url.rstrip("/")
+    page.goto(origin + "/#" + fragment.format(token=store.token))
+    expect(page.locator("#access-error")).to_contain_text("invalid, expired or revoked")
+    expect(page.locator("#workspace")).to_be_hidden()
+    expect(page).to_have_url(origin + "/")
+    assert len(store.sessions) == 1 and not state["calls"]
+
+
+def test_fragment_link_during_question_is_scrubbed_without_changing_identity(invited_ui):
+    from playwright.sync_api import expect
+
+    page, state, store = invited_ui
+    page.get_by_label("Access code", exact=True).fill(store.token)
+    page.get_by_role("button", name="Open workspace").click()
+    expect(page.locator("#workspace")).to_be_visible()
+    pending = []
+    page.route("**/api/chat", lambda route: pending.append(route))
+    page.get_by_label("Your question", exact=True).fill("Revenue in September?")
+    page.get_by_role("button", name="Ask QueryLens").click()
+    expect(page.get_by_role("button", name="Ask QueryLens")).to_be_disabled()
+    origin = page.url.rstrip("/")
+    page.goto(origin + f"/#at={store.token}")
+    expect(page.locator("#invitation-link-notice")).to_be_visible()
+    expect(page).to_have_url(origin + "/")
+    expect(page.locator("#workspace")).to_be_visible()
+    assert len(store.sessions) == 1 and not state["calls"] and len(pending) == 1
+    pending[0].fulfill(json=ANSWER)
+    expect(page.locator("#answer-badge")).to_have_text("Answered")
+    expect(page.get_by_role("button", name="Ask QueryLens")).to_be_enabled()
+    page.goto(origin + f"/#at={store.token}")
+    expect(page.locator("#invitation-link-notice")).to_be_hidden()
+    expect(page.locator("#workspace")).to_be_visible()
+    assert len(store.sessions) == 2
+
+
+def test_fragment_change_during_login_is_scrubbed_without_second_login(invited_ui):
+    from playwright.sync_api import expect
+
+    page, state, store = invited_ui
+    pending = []
+    page.route("**/api/access/login", lambda route: pending.append(route))
+    origin = page.url.rstrip("/")
+    page.goto(origin + f"/?at={store.token}")
+    expect(page.get_by_role("button", name="Opening workspace…")).to_be_disabled()
+    page.goto(origin + f"/#at={store.token}")
+    expect(page.locator("#invitation-link-notice")).to_be_visible()
+    expect(page).to_have_url(origin + "/")
+    assert len(pending) == 1 and not store.sessions and not state["calls"]
+    pending[0].continue_()
+    expect(page.locator("#workspace")).to_be_visible()
+    assert len(pending) == 1 and len(store.sessions) == 1
+
+
 def test_invitation_entry_is_visible_when_script_fails_to_load(ui_server, browser):
     from playwright.sync_api import expect
 

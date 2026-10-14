@@ -27,6 +27,7 @@
         <button id="retry-context" class="text-button" type="button" hidden>Reload context</button>
       </div>
     </section>
+    <p id="invitation-link-notice" class="notice error" role="alert" hidden>Another request is running. Wait for it to finish, then open the invitation link again.</p>
     <section id="access-panel" class="panel access-panel" aria-labelledby="access-heading">
       <p class="eyebrow">INVITATION ACCESS</p>
       <h2 id="access-heading">Try QueryLens</h2>
@@ -35,7 +36,7 @@
         <label for="access-code">Access code</label>
         <input id="access-code" type="password" autocomplete="off" autocapitalize="none" spellcheck="false" maxlength="80" required>
         <p id="access-error" class="notice error" role="alert" hidden></p>
-        <button id="access-submit" class="primary-button" type="submit">Open workspace <span aria-hidden="true">↗</span></button>
+        <button id="access-submit" class="primary-button" type="submit"><span id="access-submit-label">Open workspace</span> <span aria-hidden="true">↗</span></button>
       </form>
     </section>
     <div id="access-status" class="context-bar" aria-live="polite" hidden><span id="access-remaining"></span><button id="access-logout" class="text-button" type="button">Sign out</button></div>

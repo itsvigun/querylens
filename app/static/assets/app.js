@@ -1,5 +1,25 @@
 "use strict";
 
+let invitationLink = takeInvitationLink();
+
+function takeInvitationLink() {
+  const url = new URL(window.location.href);
+  const fragment = new URLSearchParams(url.hash.slice(1));
+  const queryCodes = url.searchParams.getAll("at");
+  const fragmentCodes = fragment.getAll("at");
+  const codes = [...queryCodes, ...fragmentCodes];
+  if (!codes.length) return null;
+  url.searchParams.delete("at");
+  if (fragmentCodes.length) {
+    fragment.delete("at");
+    url.hash = fragment.toString();
+  }
+  // Scrub before login/status fetches, including invalid or ambiguous links.
+  try { window.history.replaceState(null, "", url.pathname + url.search + url.hash); }
+  catch { return { credential: "" }; }
+  return { credential: codes.length === 1 ? codes[0] : "" };
+}
+
 const form = document.querySelector("#question-form");
 const question = document.querySelector("#question");
 const submit = document.querySelector("#submit-question");
@@ -18,6 +38,7 @@ const accessPanel = document.querySelector("#access-panel");
 const workspace = document.querySelector("#workspace");
 const accessError = document.querySelector("#access-error");
 const accessStatus = document.querySelector("#access-status");
+const invitationLinkNotice = document.querySelector("#invitation-link-notice");
 
 const statusLabels = {
   answered: "Answered", clarification: "Clarify", unsupported: "Unsupported",
@@ -182,23 +203,37 @@ async function openWorkspace() {
   }
 }
 
-document.querySelector("#access-form").addEventListener("submit", async event => {
-  event.preventDefault();
+async function loginInvitation(credential) {
   const code = document.querySelector("#access-code");
   const button = document.querySelector("#access-submit");
   if (button.disabled) return;
+  invitationLinkNotice.hidden = true;
   button.disabled = true;
-  const credential = code.value.trim();
+  code.disabled = true;
+  accessPanel.setAttribute("aria-busy", "true");
+  document.querySelector("#access-submit-label").textContent = "Opening workspace…";
   code.value = "";
+  lockWorkspace();
   try {
+    if (!/^qlt_[a-f0-9]{32}_[A-Za-z0-9_-]{43}$/.test(credential)) throw new Error("access_denied");
     await requestJSON("/api/access/login", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token: credential }) }, 10000);
+    credential = "";
     await openWorkspace();
   } catch (error) {
     accessError.textContent = errorMessage(error.message);
     accessError.hidden = false;
   } finally {
+    credential = "";
     button.disabled = false;
+    code.disabled = false;
+    accessPanel.setAttribute("aria-busy", "false");
+    document.querySelector("#access-submit-label").textContent = "Open workspace";
   }
+}
+
+document.querySelector("#access-form").addEventListener("submit", event => {
+  event.preventDefault();
+  loginInvitation(document.querySelector("#access-code").value.trim());
 });
 
 document.querySelector("#access-logout").addEventListener("click", async () => {
@@ -388,7 +423,6 @@ form.addEventListener("submit", async event => {
     renderAnswer({ status: "error", error: { category: error.message } }, asked);
     if (["access_required", "access_denied"].includes(error.message)) lockWorkspace(errorMessage(error.message));
   } finally {
-    busy = false;
     question.disabled = false;
     document.querySelectorAll(".example").forEach(button => { button.disabled = false; });
     document.querySelector(".answer-panel").setAttribute("aria-busy", "false");
@@ -398,6 +432,7 @@ form.addEventListener("submit", async event => {
         if (["access_required", "access_denied"].includes(error.message)) lockWorkspace(errorMessage(error.message));
       }
     }
+    busy = false;
     updateInput();
     document.querySelector("#answer-heading").focus({ preventScroll: true });
     if (window.matchMedia("(max-width: 700px)").matches) {
@@ -419,4 +454,27 @@ document.querySelectorAll(".example").forEach(button => button.addEventListener(
   question.focus();
 }));
 document.querySelector("#retry-context").addEventListener("click", loadContext);
-openWorkspace();
+function openInvitationLink(link) {
+  let credential = link.credential;
+  link.credential = "";
+  // Never change the invitation identity while login or a question is running.
+  if (busy || document.querySelector("#access-submit").disabled) {
+    credential = "";
+    invitationLinkNotice.hidden = false;
+    return;
+  }
+  loginInvitation(credential);
+  credential = "";
+}
+
+window.addEventListener("hashchange", () => {
+  const link = takeInvitationLink();
+  if (link) openInvitationLink(link);
+});
+
+if (invitationLink) {
+  openInvitationLink(invitationLink);
+  invitationLink = null;
+} else {
+  openWorkspace();
+}

@@ -890,3 +890,133 @@ The subsequent explicit documentation commit/push request includes only deployme
 instructions and this evidence. Diff and documentation-target checks passed.
 Application code is unchanged, so tests were not repeated. Local plan, invitation
 files, environments, history backup and LinkedIn draft remain ignored/uncommitted.
+
+
+## Bounded live checks in the deployed container — 2026-10-14
+
+The author explicitly authorized five control questions with a total OpenAI
+allowance of USD 0.10. Used the OpenAI Docs skill to search/fetch the official
+[GPT-5.4 mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini) and
+[small embedding](https://developers.openai.com/api/docs/models/text-embedding-3-small)
+model pages; standard input/output/embedding prices remain USD 0.75/4.50/0.02 per
+million tokens. Cached discounts are ignored. No API-key helper was available;
+the existing server-side key remained in its deployed environment.
+
+Unpaid preflight: HTTPS live/ready returned 200 (all four readiness checks);
+anonymous access status/Swagger/demo/chat returned 401; the entry page and all
+three assets returned 200. Inside the deployed API container, the analytics reader
+verified the full synthetic-v1 fingerprint/control report against independent
+references. The knowledge reader reported the existing OpenAI small/1536/v1
+index: 25 chunks, compatible chunker and unchanged corpus hash.
+
+Ran a separate ephemeral CLI process via `railway ssh` inside the running API
+container, calling the deployed `_ask` service and original grader. Seven source
+file hashes matched the reviewed local code before paid work. This is **live hosted
+CLI smoke**, not five HTTP/browser question requests: invitation/monthly HTTP
+counters are outside this explicit owner test. The web process, configuration,
+policy, roles and index were not changed. No migration, ingestion, restart or
+case retry occurred. Retrieval observation affected only the separate test process.
+
+Before each case, capped cumulative request input bytes using remaining micro-USD,
+4000 total output tokens and the existing 16000 embedding-byte cap. The uncached
+byte/token upper bound had to fit the entire remaining USD 0.10 test allowance.
+Only complete validated LLM/embedding usage allowed another case; unknown usage
+would stop the run and account for the pending case's full bound. These are test
+process caps, not reinstated application monetary reservations. Churn/conversion
+questions explicitly requested the listed columns and eight-decimal raw fractions.
+
+Actual results, one answer per case:
+
+| Case | SQL table matches independent reference | Strict result | Reason |
+|---|---|---|---|
+| September completed-order revenue | Yes: 336080.07 EUR | Pass | Complete values/facts/sources |
+| Previous complete calendar-week revenue | Yes: 78995.84 EUR | Fail | Revenue definition present, Relative periods heading neither retrieved nor cited |
+| September distinct session users | Yes: 9501 | Pass | Complete values/facts/sources |
+| September subscription churn by plan | Yes: basic 0.20000000, enterprise 0.04000000, pro 0.10000000, with matching denominators/cancellations | Fail | All nine numeric cells referenced, three plan-name cells omitted from facts |
+| August registration-cohort 30-day conversion | Yes: 3238, 1735, true, 0.53582458 | Pass | Complete values/facts/sources |
+
+All five returned `answered` with valid referenced fact-cell provenance. **SQL
+value tables: 5/5; existing strict grader: 3/5.** The grader's
+`metric_values_correct=false` for churn combines row equality with full expected
+fact coverage; inspection confirms row equality and missing categorical fact cells,
+not incorrect rates. Kept the grader/expected data unchanged. Last-week SQL used
+2026-09-21 through 2026-09-28 UTC correctly but lacked the required rule citation.
+
+Usage was complete: 15 Responses requests, 36137 input tokens, 2297 output tokens;
+5 embedding requests/75 tokens. Per-case rounded uncached estimates sum to
+**37443 micro-USD (USD 0.037443)**, below the authorized USD 0.10. Observed run duration
+was 24416 ms, not a performance guarantee. Private mode-0600 raw reports, actual
+SQL/results/sources and diagnostics are in ignored `artifacts/deployment-smoke-20261014/`;
+none are CI artifacts or staged for Git.
+
+Offline grader/cost regressions: **31 passed**. Re-scored the saved live records
+without provider calls and checked SQL-row equality plus the omitted cell positions.
+Source inspection found no explicit prompt requirement to cite relative-period
+rules or reference requested categorical cells. No paid case was repeated and
+no prompt/server behavior was changed. Stage 8 remains open: these two strict
+coverage failures, restart persistence, backup/restore and portfolio media need
+completion. This single synthetic sample set does not establish universal accuracy.
+
+## Private invitation links — 2026-10-14
+
+Implemented the author's requested automatic entry using `?at=<code>` and the
+recommended `#at=<code>` variant. The browser removes the parameter from the
+current URL/history entry before API fetches and exchanges the code through the
+existing POST login/HttpOnly session. An explicit link takes precedence over an
+existing session; malformed/empty/ambiguous links do not restore its workspace.
+No backend GET authentication, migration, dependency, quota/accounting or provider
+change was added. Root HTML now uses no-referrer/no-store. Query credentials can
+still reach hosting-edge logs on the initial GET; fragment credentials do not.
+
+Checks actually run:
+
+- `uv run --locked pytest -m 'not integration and not browser' -q`: **293 passed**.
+- `QUERYLENS_BROWSER=1 uv run --locked --group browser pytest tests/test_ui_browser.py -q`:
+  **48 passed**, with labeled offline chat fixtures and no paid provider calls.
+  Covers both link formats on desktop/mobile, URL cleanup before fetches, no
+  referrer disclosure, preserved query/anchor values, cookie reload/logout,
+  invalid/ambiguous links with an existing session, company selection,
+  server denial/session limits, loading/network failure and manual recovery.
+- Ruff lint/format and `git diff --check` passed.
+- `docker compose up --build -d --wait api`: rebuilt/recreated the local API;
+  existing DB remained running and both services were healthy. A separate
+  Chromium smoke against `127.0.0.1:8000` used the existing private local
+  invitation with real PostgreSQL sessions for query and fragment entry,
+  metadata, reload, URL cleanup and logout. Remaining questions were unchanged;
+  no `/api/chat` request or provider call occurred. Both created sessions were
+  logged out; no credentials were printed or persisted into reports.
+
+Initial browser checks exposed test assumptions: Chromium's inspected referrer
+may be represented as an empty header, and changing only an existing page's
+fragment does not reload its entry script. Assertions check absent/empty referrers
+and invitation navigation from another document, matching a CV-link entry.
+The initial flow consumed links on document load, not in-page hash changes; the
+following user-reported regression check adds that missing path.
+Full PostgreSQL quota/ACL tests were not repeated because storage/admission code
+is unchanged. Railway deployment/link acceptance remains pending; no remote
+deployment or paid AI verification was performed for this change.
+
+## Already-open page fragment entry — 2026-10-14
+
+The author reported that the local `#at=` link did not open the workspace. A
+read-only check established that its local invitation existed, was unexpired and
+not revoked. Fresh-document login with the existing private file succeeded.
+Reproduced the actual failure by opening `/` first, then navigating the same
+document to `/#at=`: no login was sent and the code remained in the URL. The entry
+script had only run on document load. No credential was printed in these checks.
+
+Added `hashchange` handling using the existing scrub/login flow. Ordinary anchors
+do not trigger login. A link opened during login or an active question is scrubbed
+and discarded with a visible wait notice, without changing the current identity
+or automatically queuing/retrying the code. Question busy state now includes its
+final status refresh, preventing invitation switching during that completion step.
+
+Verification: **54 Chromium tests passed**, including initial entry, same-document
+entry/company selection, invalid/duplicate fragment links, normal anchors and
+links during login/questions. The targeted offline UI/access suite passed
+**29 tests**; Ruff lint/format and `git diff --check` passed. Rebuilt the local API
+image and verified same-document entry against real PostgreSQL using the existing
+private local invitation: login/status/demo/logout returned 200, a document marker
+confirmed no reload, and the URL was scrubbed. The smoke-created session was
+logged out. No chat/provider call, database/configuration change or Railway
+deployment occurred. Existing tabs need one reload to load the updated script.

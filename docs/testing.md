@@ -153,6 +153,11 @@ wrong/expired/revoked credentials, sessions/logout, concurrent quota admission,
 per-token/global rollback, durable audit, interrupted-request recovery, role ACLs
 and real HTTP readiness/accounting without a key/provider. Browser fixtures cover
 entry/cookie/reload/logout on desktop/mobile and revocation without retries.
+They also cover query/fragment invitation entry, URL cleanup before API fetches,
+no referrer disclosure, previous-company session precedence, ambiguous/invalid
+links, session-limit/network failures, loading controls and manual recovery.
+Same-document fragment navigation is covered separately, including company
+switching, invalid links, ordinary anchors and preserving an in-flight question.
 They establish access/control behavior, not semantic AI quality. Existing CI's
 three test groups include these files automatically without paid keys.
 

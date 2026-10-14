@@ -39,10 +39,13 @@ docker compose logs --tail 50 api
 ```
 
 The supplied Docker command and documented host command disable Uvicorn access
-logs, avoiding a second log channel with arbitrary URL query strings. Application
-lifecycle messages remain available. The analytics logger has its own JSON handler
-and does not propagate into root/SDK loggers. This is local structured logging,
-not external tracing, durable metrics, log retention or alerting. LangSmith
+logs, avoiding a second log channel with arbitrary URL query strings. Private
+invitation links are consumed by the browser and excluded from fixed-field logs.
+Prefer the `#at=` form: a `?at=` code reaches the hosting edge on the initial GET
+and can appear in infrastructure logs outside these application controls.
+Application lifecycle messages remain available. The analytics logger has its own
+JSON handler and does not propagate into root/SDK loggers. This is local structured
+logging, not external tracing, durable metrics, log retention or alerting. LangSmith
 tracing stays disabled. No new telemetry service or dependency is introduced.
 
 Response tool/workflow traces still expose sanitized transition details for

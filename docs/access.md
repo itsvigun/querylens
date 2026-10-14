@@ -31,10 +31,65 @@ already admitted can finish.
 
 Cookie-authenticated POST requests require the configured exact Origin,
 `X-QueryLens-Client: browser`, and an `X-CSRF-Token` obtained from login/status.
-The nonce stays in JavaScript memory. No code is placed in a URL or localStorage.
+The nonce stays in JavaScript memory. Invitation links are consumed once by the
+entry page as described below; codes are never saved in browser storage.
 API clients use `Authorization: Bearer <invitation code>` instead. In Swagger,
 click **Authorize** and enter the code to submit requests. CLI tools such as
 `scripts.ask` are owner/developer jobs and do not use HTTP invitation quotas.
+
+## Invitation links
+
+To let a CV recipient open the workspace without entering a code, send a private
+link using their existing invitation:
+
+```text
+https://querylens-production-f241.up.railway.app/#at=<invitation_code>
+```
+
+Replace the placeholder privately with the full code from its ignored invitation
+file. The fragment (`#at=`) is recommended because browsers do not send it in the
+initial HTTP request. The originally requested query form is also supported:
+
+```text
+https://querylens-production-f241.up.railway.app/?at=<invitation_code>
+```
+
+When the document loads or its fragment changes, the entry script reads one `at`
+parameter and removes it from the current URL/history entry before any login/status
+fetch, on both success and failure. Other query parameters and ordinary anchors
+are preserved. It then uses the same POST login
+and HttpOnly session as manual entry; GET parameters never authenticate backend
+routes. Opening a link consumes no question and calls no provider. Reload uses the
+cookie; sign out does not replay the removed code. Reopening the original invitation
+link creates another session, subject to the existing eight-session limit.
+
+A supplied link selects its invitation even if another company has an existing
+browser session. Empty/malformed codes, repeated `at` parameters or simultaneous
+query and fragment codes are rejected. A rejected link shows the manual entry form
+and never silently opens the previous session. That previous cookie may still be
+usable after a separate ordinary navigation. Expiry, revocation, quotas and
+post-request attribution remain unchanged. Without JavaScript, automatic entry
+is unavailable; the page already requires JavaScript for manual browser login/chat.
+
+The entry page uses `Referrer-Policy: no-referrer`, `Cache-Control: no-store` and
+the existing CSP. Codes are not echoed into HTML/errors or written into browser
+storage/application logs. However, `?at=` reaches Railway/proxies in the initial
+request and may appear in their logs; client-side cleanup cannot undo this. Either
+format is a bearer credential: anyone with a forwarded link can use its invitation.
+Share it privately with the intended recipient, not in a public LinkedIn post,
+repository or tracked CV source. The company label establishes invitation
+attribution, not the visitor's actual identity.
+
+Changing an already open page to `#at=<code>` also starts entry without a reload.
+Ordinary anchors such as `#question` do not log in. While login or a question is
+running, a new link is scrubbed and discarded with a visible wait message, keeping
+the current request's invitation identity. Open the original link again after
+completion; the code is not queued or retried automatically.
+
+Deploying invitation-link support requires only the updated API image/assets;
+there is no new migration, role/policy configuration, ingestion or token issuance.
+Existing invitations work with the new entry flow. Hosted link acceptance is
+separate from the offline/browser checks in the verification record.
 
 ## Quotas and accounting
 
@@ -99,7 +154,8 @@ uv run --locked python -m scripts.access_tokens list
 Creation prints metadata, including `token_id` and the secret file path. The full
 code is written only into a new file with mode `0600`; an existing file is never
 overwritten. `.access-tokens/` is ignored by Git and Docker. Read/copy that private
-file yourself and send the code with the hosted UI URL to the intended recipient.
+file yourself and send a private invitation link or the code with the hosted UI
+URL to the intended recipient.
 Do not put it in job logs, screenshots or a tracked CV source. A lost code cannot
 be recovered from PostgreSQL: revoke it and issue another.
 
@@ -179,7 +235,7 @@ code rejects invitation/session credential patterns inside a question before
 admission, preventing accidental forwarding to the model. Provider/database
 secrets remain server-side.
 
-No registration, public admin UI, token URL links, automatic retries or external
+No registration, public admin UI, automatic retries or external
 tracking are added. This small deployment relies on its hosting edge for broader
 network abuse protection; invitation rates bound admitted AI questions rather
 than every HTTP connection. PostgreSQL audit/session data grows with use; retention
@@ -226,6 +282,7 @@ uv run --locked --env-file .env.production python -m scripts.access_tokens revok
 `uv --env-file` puts these hosted settings in the process environment, which takes
 precedence over the local development `.env`. The private invitation file contains
 the full code; stdout contains metadata only. Give the recipient the code and the
-hosted homepage URL separately. Keep the SSH tunnel/environment file private and
-close the tunnel when finished. All codes share the currently approved USD 1/month
-known-cost threshold. These commands do not raise it or synchronize OpenAI balance.
+hosted homepage URL separately, or use the private fragment link above. Keep the
+SSH tunnel/environment file private and close the tunnel when finished. All codes
+share the currently approved USD 1/month known-cost threshold. These commands do
+not raise it or synchronize OpenAI balance.
